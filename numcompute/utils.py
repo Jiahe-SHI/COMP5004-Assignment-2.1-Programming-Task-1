@@ -176,3 +176,76 @@ def logsumexp(x, axis=None, keepdims=False):
         result = np.squeeze(result, axis=axis)
 
     return result[()] if result.ndim == 0 else result
+
+def euclidean_distances(X, Y=None):
+    """Compute pairwise Euclidean distances between sample rows."""
+    X_array = _as_float_array(X, name="X", ndim=2, finite=True)
+
+    if Y is None:
+        Y_array = X_array
+    else:
+        Y_array = _as_float_array(Y, name="Y", ndim=2, finite=True)
+
+    if X_array.shape[1] == 0 or Y_array.shape[1] == 0:
+        raise ValueError("X and Y must have at least one feature.")
+
+    if X_array.shape[1] != Y_array.shape[1]:
+        raise ValueError("X and Y must have the same number of features.")
+
+    n_samples = X_array.shape[0]
+    m_samples = Y_array.shape[0]
+
+    result = np.empty((n_samples, m_samples), dtype=np.float64)
+
+    block_size = 64
+
+    for i in range(0, n_samples, block_size):
+        X_block = X_array[i:i + block_size]
+
+        for j in range(0, m_samples, block_size):
+            Y_block = Y_array[j:j + block_size]
+
+            # Unrepresentable distances become inf; tiny rounding underflow is permitted.
+            with np.errstate(over="ignore", under="ignore"):
+                difference = (X_block[:, None, :]- Y_block[None, :, :])
+
+                result[i:i + block_size,j:j + block_size,] = np.hypot.reduce(difference, axis=2)
+
+    return result
+
+def batch_iter(X,batch_size=32,shuffle=False,random_state=None,drop_last=False,):
+    """Yield independent array batches along the first dimension."""
+    batch_size = _validate_integer(batch_size, name="batch_size", minimum=1)
+
+    for name, value in (("shuffle", shuffle),("drop_last", drop_last),):
+        if not isinstance(value, (bool, np.bool_)):
+            raise TypeError(f"{name} must be a boolean.")
+
+    if random_state is not None:
+        random_state = _validate_integer(random_state,name="random_state",minimum=0,)
+
+    array = np.asarray(X)
+
+    if array.ndim == 0:
+        raise ValueError("X must have at least one dimension.")
+
+    n_samples = array.shape[0]
+
+    if drop_last:
+        stop = n_samples - (n_samples % batch_size)
+    else:
+        stop = n_samples
+
+    if shuffle:
+        rng = np.random.default_rng(random_state)
+        indices = rng.permutation(n_samples)
+
+    for start in range(0, stop, batch_size):
+        end = min(start + batch_size, stop)
+
+        if shuffle:
+            # Integer-array indexing creates an independent copy.
+            yield array[indices[start:end]]
+        else:
+            # Slicing creates a view, so explicitly copy it.
+            yield array[start:end].copy()
