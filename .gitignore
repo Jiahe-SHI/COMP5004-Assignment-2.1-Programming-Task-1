@@ -6,4 +6,3 @@ build/
 dist/
 .ipynb_checkpoints/
 .env
-/docs/
