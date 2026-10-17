@@ -33,3 +33,42 @@ def _validate_step(h):
         raise ValueError(f"h must be positive; got {value}.")
 
     return value
+
+
+
+def _prepare(x, method, h):
+    """Validate inputs and return x, the method and the perturbed points.
+
+    Return (array, method, upper, lower). For the central method, lower
+    holds x - h; for the forward method, lower is the unperturbed x.
+    """
+    method = _validate_method(method)
+    h = _validate_step(h)
+    array = _as_float_array(x, name="x", ndim=1, finite=True)
+
+    if array.size == 0:
+        raise ValueError("x must contain at least one value.")
+
+    # Overflow is reported below as a non-finite coordinate.
+    with np.errstate(over="ignore"):
+        upper = array + h
+        lower = array - h if method == "central" else array.copy()
+
+    for point in (upper, lower) if method == "central" else (upper,):
+        if not np.all(np.isfinite(point)):
+            raise ValueError("x + h and x - h must remain finite.")
+
+        # A step below the spacing of float64 values near x has no effect.
+        if np.any(point == array):
+            raise ValueError(
+                "h is too small to change every coordinate of x; "
+                "use a larger h."
+            )
+
+    with np.errstate(over="ignore"):
+        steps = upper - lower
+
+    if not np.all(np.isfinite(steps)):
+        raise ValueError("The step between perturbed points must be finite.")
+
+    return array, method, upper, lower
