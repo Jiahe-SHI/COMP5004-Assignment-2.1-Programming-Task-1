@@ -194,3 +194,73 @@ def grad(f, x, method="central", h=1e-5):
         result[i] = _difference(f_upper, f_lower, upper[i] - lower[i])
 
     return result
+
+
+def jacobian(f, x, method="central", h=1e-5):
+    """Estimate the Jacobian of a vector function by finite differences.
+
+    Parameters
+    ----------
+    f : callable
+        Function taking a 1D float64 array of shape (n,) and returning a
+        non-empty, finite 1D real array of shape (m,). m must stay the
+        same on every call. Each call receives an independent array copy.
+    x : array_like of real numbers, shape (n,)
+        Non-empty, finite point at which the Jacobian is estimated.
+        Integer input is converted to float64; slices are supported.
+    method : {"central", "forward"}, default="central"
+        "central" uses (f(x + h e_j) - f(x - h e_j)) / (2h), with error
+        O(h**2). "forward" uses (f(x + h e_j) - f(x)) / h, with error O(h),
+        and reuses a single baseline evaluation of f(x).
+    h : real scalar, default=1e-5
+        Positive, finite absolute step size. Booleans are rejected. The
+        divisor is the step actually represented in float64.
+
+    Returns
+    -------
+    numpy.ndarray of float64, shape (m, n)
+        Entry [i, j] estimates the derivative of output i with respect
+        to input j.
+
+    Raises
+    ------
+    TypeError
+        If method is not a string, h is not a real scalar or is boolean,
+        x is not real numeric data, or f returns non-numeric data.
+    ValueError
+        If method is unsupported; h is non-positive or non-finite; x is
+        not 1D, is empty or contains NaN/infinity; x +/- h is non-finite
+        or equal to x; f returns an output that is not 1D, is empty,
+        changes length or is non-finite; or a difference quotient
+        overflows.
+
+    Notes
+    -----
+    Function evaluations: 2n for "central", n + 1 for "forward".
+    Time: O(n * (C_f + n + m)), where C_f is the cost of one call to f.
+    Additional space: O(m * n) for the result, plus the space used by f.
+    The caller's x is never modified.
+    """
+    array, method, upper, lower = _prepare(x, method, h)
+
+    n_outputs = None
+
+    if method == "forward":
+        f_lower = _vector_output(f(array.copy()))
+        n_outputs = f_lower.size
+
+    columns = []
+
+    for j in range(array.size):
+        f_upper = _vector_output(f(_perturbed(array, j, upper[j])), n_outputs)
+        n_outputs = f_upper.size
+
+        if method == "central":
+            f_lower = _vector_output(
+                f(_perturbed(array, j, lower[j])), n_outputs
+            )
+
+        columns.append(_difference(f_upper, f_lower, upper[j] - lower[j]))
+
+    # Each column holds the derivatives with respect to one input.
+    return np.stack(columns, axis=1)
