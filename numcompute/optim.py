@@ -118,3 +118,79 @@ def _vector_output(value, n_outputs=None):
         raise ValueError("f(x) must return only finite values.")
 
     return result
+
+
+def _difference(f_upper, f_lower, step):
+    """Return (f_upper - f_lower) / step, rejecting overflow."""
+    with np.errstate(over="ignore", invalid="ignore", under="ignore"):
+        result = (f_upper - f_lower) / step
+
+    if not np.all(np.isfinite(result)):
+        raise ValueError(
+            "The finite-difference result exceeds the supported numeric range."
+        )
+
+    return result
+
+
+def grad(f, x, method="central", h=1e-5):
+    """Estimate the gradient of a scalar function by finite differences.
+
+    Parameters
+    ----------
+    f : callable
+        Function taking a 1D float64 array of shape (n,) and returning a
+        finite real scalar. Each call receives an independent array copy,
+        so f may modify its argument without affecting x or later calls.
+    x : array_like of real numbers, shape (n,)
+        Non-empty, finite point at which the gradient is estimated.
+        Integer input is converted to float64; slices are supported.
+    method : {"central", "forward"}, default="central"
+        "central" uses (f(x + h e_i) - f(x - h e_i)) / (2h), with error
+        O(h**2). "forward" uses (f(x + h e_i) - f(x)) / h, with error O(h),
+        and reuses a single baseline evaluation of f(x).
+    h : real scalar, default=1e-5
+        Positive, finite absolute step size. Booleans are rejected. The
+        divisor is the step actually represented in float64, which may
+        differ slightly from h after rounding.
+
+    Returns
+    -------
+    numpy.ndarray of float64, shape (n,)
+        Estimated partial derivatives, one per coordinate of x.
+
+    Raises
+    ------
+    TypeError
+        If method is not a string, h is not a real scalar or is boolean,
+        x is not real numeric data, or f returns non-numeric data.
+    ValueError
+        If method is unsupported; h is non-positive or non-finite; x is
+        not 1D, is empty or contains NaN/infinity; x +/- h is non-finite
+        or equal to x; f returns a non-scalar or non-finite value; or the
+        difference quotient overflows.
+
+    Notes
+    -----
+    Function evaluations: 2n for "central", n + 1 for "forward".
+    Time: O(n * (C_f + n)), where C_f is the cost of one call to f and
+    O(n) is the cost of copying x for each call.
+    Additional space: O(n) besides the space used by f.
+    The caller's x is never modified.
+    """
+    array, method, upper, lower = _prepare(x, method, h)
+
+    if method == "forward":
+        f_lower = _scalar_output(f(array.copy()))
+
+    result = np.empty(array.size, dtype=np.float64)
+
+    for i in range(array.size):
+        f_upper = _scalar_output(f(_perturbed(array, i, upper[i])))
+
+        if method == "central":
+            f_lower = _scalar_output(f(_perturbed(array, i, lower[i])))
+
+        result[i] = _difference(f_upper, f_lower, upper[i] - lower[i])
+
+    return result
