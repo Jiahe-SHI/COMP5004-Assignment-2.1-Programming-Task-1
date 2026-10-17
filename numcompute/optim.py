@@ -72,3 +72,49 @@ def _prepare(x, method, h):
         raise ValueError("The step between perturbed points must be finite.")
 
     return array, method, upper, lower
+
+
+def _perturbed(array, index, value):
+    """Return an independent copy of array with one coordinate replaced."""
+    point = array.copy()
+    point[index] = value
+    return point
+
+
+def _scalar_output(value):
+    """Validate one output of f for grad and return it as a float."""
+    result = _as_float_array(value, name="f(x)")
+
+    if result.ndim != 0:
+        raise ValueError(
+            f"f(x) must return a scalar; got shape {result.shape}."
+        )
+
+    if not np.isfinite(result):
+        raise ValueError("f(x) must return a finite value.")
+
+    return float(result)
+
+
+def _vector_output(value, n_outputs=None):
+    """Validate one output of f for jacobian and return a float64 array."""
+    result = _as_float_array(value, name="f(x)")
+
+    if result.ndim != 1:
+        raise ValueError(
+            f"f(x) must return a 1D array; got {result.ndim}D."
+        )
+
+    if result.size == 0:
+        raise ValueError("f(x) must return at least one value.")
+
+    if n_outputs is not None and result.size != n_outputs:
+        raise ValueError(
+            f"f(x) must return {n_outputs} values on every evaluation; "
+            f"got {result.size}."
+        )
+
+    if not np.all(np.isfinite(result)):
+        raise ValueError("f(x) must return only finite values.")
+
+    return result
