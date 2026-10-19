@@ -2,6 +2,7 @@
 
 import numpy as np
 from numbers import Real
+from .utils import _as_float_array
 
 def _validate_label_values(array, name):
     """Validate label values and return their common kind."""
@@ -120,7 +121,7 @@ def confusion_matrix(y_true, y_pred, labels=None):
             if label not in ordered_labels:
                 ordered_labels.append(label)
 
-        label_array = np.asarray(ordered_labels)
+        label_array = np.asarray(ordered_labels, dtype=object)
     else:
         label_array = np.asarray(labels, dtype=object)
 
@@ -188,27 +189,7 @@ def precision(
     zero_division=0,
 ):
     """Return binary or averaged classification precision."""
-    if not isinstance(average, str):
-        raise TypeError("average must be a string.")
-
-    valid_averages = (
-        "binary",
-        "macro",
-        "micro",
-        "weighted",
-    )
-
-    if average not in valid_averages:
-        raise ValueError(
-            "average must be 'binary', 'macro', "
-            "'micro' or 'weighted'."
-        )
-
-    if isinstance(zero_division, (bool, np.bool_)):
-        raise TypeError("zero_division must be 0 or 1.")
-
-    if zero_division not in (0, 1):
-        raise ValueError("zero_division must be 0 or 1.")
+    _validate_metric_options(average, zero_division)
 
     matrix, labels = confusion_matrix(y_true, y_pred)
 
@@ -278,27 +259,7 @@ def recall(
     zero_division=0,
 ):
     """Return binary or averaged classification recall."""
-    if not isinstance(average, str):
-        raise TypeError("average must be a string.")
-
-    valid_averages = (
-        "binary",
-        "macro",
-        "micro",
-        "weighted",
-    )
-
-    if average not in valid_averages:
-        raise ValueError(
-            "average must be 'binary', 'macro', "
-            "'micro' or 'weighted'."
-        )
-
-    if isinstance(zero_division, (bool, np.bool_)):
-        raise TypeError("zero_division must be 0 or 1.")
-
-    if zero_division not in (0, 1):
-        raise ValueError("zero_division must be 0 or 1.")
+    _validate_metric_options(average, zero_division)
 
     matrix, labels = confusion_matrix(y_true, y_pred)
 
@@ -362,27 +323,7 @@ def f1(
     zero_division=0,
 ):
     """Return binary or averaged classification F1 score."""
-    if not isinstance(average, str):
-        raise TypeError("average must be a string.")
-
-    valid_averages = (
-        "binary",
-        "macro",
-        "micro",
-        "weighted",
-    )
-
-    if average not in valid_averages:
-        raise ValueError(
-            "average must be 'binary', 'macro', "
-            "'micro' or 'weighted'."
-        )
-
-    if isinstance(zero_division, (bool, np.bool_)):
-        raise TypeError("zero_division must be 0 or 1.")
-
-    if zero_division not in (0, 1):
-        raise ValueError("zero_division must be 0 or 1.")
+    _validate_metric_options(average, zero_division)
 
     matrix, labels = confusion_matrix(y_true, y_pred)
 
@@ -459,9 +400,9 @@ def f1(
     )
 
 def mse(y_true, y_pred):
-    """Return the mean squared error over all elements."""
-    true = np.asarray(y_true)
-    pred = np.asarray(y_pred)
+    """Return the scalar mean squared error over all elements."""
+    true = _as_float_array(y_true, name="y_true", finite=True)
+    pred = _as_float_array(y_pred, name="y_pred", finite=True)
 
     if true.ndim not in (1, 2):
         raise ValueError("y_true must be 1D or 2D.")
@@ -479,31 +420,27 @@ def mse(y_true, y_pred):
             "y_true and y_pred must not be empty."
         )
 
-    if true.dtype.kind not in "iuf":
-        raise TypeError("y_true must contain real numbers.")
-
-    if pred.dtype.kind not in "iuf":
-        raise TypeError("y_pred must contain real numbers.")
-
-    true = true.astype(np.float64, copy=True)
-    pred = pred.astype(np.float64, copy=True)
-
-    if not np.all(np.isfinite(true)):
-        raise ValueError(
-            "y_true must contain only finite values."
-        )
-
-    if not np.all(np.isfinite(pred)):
-        raise ValueError(
-            "y_pred must contain only finite values."
-        )
-
     with np.errstate(over="ignore", invalid="ignore"):
-        squared_errors = (true - pred) ** 2
-        result = np.mean(
-            squared_errors,
-            dtype=np.float64,
+        residuals = true - pred
+
+    if not np.all(np.isfinite(residuals)):
+        raise ValueError(
+            "Mean squared error exceeds the numeric range."
         )
+
+    scale = np.max(np.abs(residuals))
+
+    if scale == 0:
+        return 0.0
+
+    normalized = residuals / scale
+    mean_square = np.mean(normalized * normalized, dtype=np.float64)
+
+    # Recover the root mean squared error before the final square.
+    # Avoid computing scale**2, which could overflow prematurely.
+    with np.errstate(over="ignore", invalid="ignore"):
+        rms = scale * np.sqrt(mean_square)
+        result = rms * rms
 
     if not np.isfinite(result):
         raise ValueError(

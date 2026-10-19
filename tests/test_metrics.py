@@ -317,7 +317,7 @@ class TestMSE(unittest.TestCase):
             [[1, 0], [5, 4]],
         )
 
-        self.assertEqual(result, 2.0)
+        self.assertAlmostEqual(result, 2.0, places=14)
 
     def test_rejects_broadcasting(self):
         with self.assertRaises(ValueError):
@@ -463,6 +463,44 @@ class TestClassificationMetricOptions(unittest.TestCase):
         np.testing.assert_array_equal(
             pred,
             pred_before,
+        )
+
+class TestMetricsRegression(unittest.TestCase):
+    """Regression tests for numeric stability and input validation."""
+
+    def test_mse_large_finite_mean(self):
+        # Each squared error is about 1e308.
+        # Their mean is representable even though their sum overflows.
+        result = mse([1e154, 1e154], [0.0, 0.0])
+
+        self.assertTrue(np.isfinite(result))
+        np.testing.assert_allclose(result, 1e308, rtol=1e-14)
+
+    def test_mse_rejects_mixed_boolean_input(self):
+        cases = (
+            ([True, 2], [1, 2]),
+            ([1, 2], [True, 2]),
+            ([[1, False]], [[1, 0]]),
+            ([[1, 0]], [[1, False]]),
+        )
+
+        for true, pred in cases:
+            with self.subTest(true=true, pred=pred):
+                with self.assertRaises(TypeError):
+                    mse(true, pred)
+
+    def test_confusion_matrix_preserves_large_integer_labels(self):
+        # Converting these labels to float64 would change the integer.
+        large_label = 2**53 + 1
+        true = [large_label, 0.5, large_label]
+        pred = [large_label, large_label, 0.5]
+
+        matrix, labels = confusion_matrix(true, pred)
+
+        self.assertEqual(labels.tolist(), [large_label, 0.5])
+        np.testing.assert_array_equal(
+            matrix,
+            [[1, 1], [1, 0]],
         )
         
 if __name__ == "__main__":
