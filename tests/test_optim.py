@@ -280,6 +280,39 @@ class TestErrors(unittest.TestCase):
         with self.assertRaises(KeyError):
             grad(f, [1.0])
 
+class TestDifferenceStability(unittest.TestCase):
+    """Check finite quotients when output subtraction overflows."""
+
+    def test_grad_representable_quotient(self):
+        # f(1) - f(-1) overflows, but the derivative is finite.
+        result = grad(
+            lambda v: 1e308 * v[0],
+            [0.0],
+            method="central",
+            h=1.0,
+        )
+
+        assert_allclose(result, [1e308], rtol=1e-14)
+
+    def test_jacobian_representable_quotient(self):
+        def f(v):
+            return np.array([
+                1e308 * v[0],
+                -1e308 * v[0],
+            ])
+
+        result = jacobian(
+            f,
+            [0.0],
+            method="central",
+            h=1.0,
+        )
+
+        assert_allclose(
+            result,
+            [[1e308], [-1e308]],
+            rtol=1e-14,
+        )
 
 if __name__ == "__main__":
     unittest.main()

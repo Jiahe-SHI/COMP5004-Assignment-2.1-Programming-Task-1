@@ -4,7 +4,7 @@ import unittest
 import numpy as np
 from numpy.testing import assert_allclose, assert_array_equal
 from numcompute.pipeline import Pipeline, FeatureUnion
-from numcompute.preprocessing import SimpleImputer, StandardScaler, MinMaxScaler, OneHotEncoder
+from numcompute.preprocessing import SimpleImputer, StandardScaler, MinMaxScaler, OneHotEncoder, ColumnSelector
 
 
 class DummyEstimator:
@@ -415,6 +415,51 @@ class TestComposition(unittest.TestCase):
         assert_allclose(result.min(axis=0), 0.0)
         assert_allclose(result.max(axis=0), 1.0)
 
+class TestNestedObjectReuse(unittest.TestCase):
+    """Reject shared fitted-state objects inside nested compositions."""
+
+    def test_shared_transformer_between_union_branches(self):
+        shared = StandardScaler()
+
+        first = Pipeline([("scale", shared)])
+        second = Pipeline([("scale", shared)])
+
+        with self.assertRaisesRegex(ValueError, "reuses"):
+            FeatureUnion([
+                ("first", first),
+                ("second", second),
+            ])
+
+    def test_shared_transformer_between_nested_pipeline_steps(self):
+        shared = StandardScaler()
+        nested = Pipeline([("scale", shared)])
+
+        with self.assertRaisesRegex(ValueError, "reuses"):
+            Pipeline([
+                ("nested", nested),
+                ("shared_again", shared),
+            ])
+
+    def test_shared_transformer_inside_union_and_later_step(self):
+        shared = StandardScaler()
+        union = FeatureUnion([("scale", shared)])
+
+        with self.assertRaisesRegex(ValueError, "reuses"):
+            Pipeline([
+                ("features", union),
+                ("shared_again", shared),
+            ])
+
+    def test_distinct_nested_transformers_are_allowed(self):
+        union = FeatureUnion([
+            ("first", Pipeline([("scale", StandardScaler())])),
+            ("second", Pipeline([("scale", StandardScaler())])),
+        ])
+
+        result = union.fit_transform(X_TRAIN)
+        expected = StandardScaler().fit_transform(X_TRAIN)
+
+        assert_allclose(result, np.hstack([expected, expected]))
 
 if __name__ == "__main__":
     unittest.main()

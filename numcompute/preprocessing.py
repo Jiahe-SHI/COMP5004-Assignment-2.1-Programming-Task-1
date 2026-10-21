@@ -396,3 +396,148 @@ class OneHotEncoder:
     def fit_transform(self, X, y=None):
         """Fit on X and return its dense float64 encoding."""
         return self.fit(X, y=y).transform(X)
+
+class ColumnSelector:
+    """Select columns from a 2D table in the requested order.
+
+    Parameters
+    ----------
+    columns : list, tuple or 1D numpy.ndarray of integers
+        Non-empty, unique, non-negative column indices.
+        Boolean indices are rejected.
+    dtype : optional NumPy dtype specification
+        None preserves the input dtype. Otherwise, selected values
+        are converted using NumPy's astype conversion rules.
+
+    Notes
+    -----
+    Outputs are independent arrays; object-array elements are not
+    deep-copied. Non-contiguous inputs are supported.
+    """
+
+    def __init__(self, columns, dtype=None):
+        self.columns = columns
+        self.dtype = dtype
+        self._validated_columns()
+        self._validated_dtype()
+
+    def _validated_columns(self):
+        if not isinstance(self.columns, (list, tuple, np.ndarray)):
+            raise TypeError("columns must be a list, tuple or 1D array.")
+
+        # Object dtype preserves booleans for explicit validation.
+        columns = np.asarray(self.columns, dtype=object)
+
+        if columns.ndim != 1 or columns.size == 0:
+            raise ValueError("columns must be a non-empty 1D sequence.")
+
+        indices = []
+        for column in columns:
+            if isinstance(column, (bool, np.bool_)) or not isinstance(
+                column, (int, np.integer)
+            ):
+                raise TypeError("columns must contain integers, not booleans.")
+
+            column = int(column)
+            if column < 0:
+                raise ValueError("columns must contain non-negative indices.")
+
+            indices.append(column)
+
+        if len(set(indices)) != len(indices):
+            raise ValueError("columns must not contain repeated indices.")
+
+        return tuple(indices)
+
+    def _validated_dtype(self):
+        return None if self.dtype is None else np.dtype(self.dtype)
+
+    @staticmethod
+    def _as_table(X):
+        array = np.asarray(X)
+        if array.ndim != 2:
+            raise ValueError("X must be a 2D table.")
+        return array
+
+    @staticmethod
+    def _select(array, columns, dtype):
+        result = array[:, list(columns)]
+        if dtype is not None:
+            result = result.astype(dtype, copy=True)
+        return result
+
+    def fit(self, X, y=None):
+        """Validate the table and store column-selection state.
+
+        X has shape (n_samples, n_features); both dimensions must
+        be non-zero. y is ignored. Return self.
+
+        Raise TypeError for invalid column types and ValueError for
+        invalid shape, indices or conversion. NumPy dtype errors
+        propagate. A failed refit preserves previous fitted state.
+
+        For n rows, p input columns and k selected columns, selection
+        and conversion cost O(n*k) time and space. Converting a
+        nested input sequence to an array additionally costs O(n*p).
+        """
+        array = self._as_table(X)
+        columns = self._validated_columns()
+        dtype = self._validated_dtype()
+
+        if array.shape[0] == 0 or array.shape[1] == 0:
+            raise ValueError("fit requires at least one sample and feature.")
+
+        if any(column >= array.shape[1] for column in columns):
+            raise ValueError("columns contains an out-of-range index.")
+
+        # Check conversion before committing the new fitted state.
+        self._select(array, columns, dtype)
+
+        self.columns_ = columns
+        self.dtype_ = dtype
+        self.n_features_in_ = array.shape[1]
+        return self
+
+    def transform(self, X):
+        """Return selected columns with shape (n_samples, k).
+
+        Require the fitted feature count; zero samples are allowed.
+        Preserve column order and return an independent array.
+
+        Raise RuntimeError before fit or if selection parameters
+        changed after fit. Raise ValueError for invalid input shape,
+        feature count or conversion. NumPy dtype errors propagate.
+
+        Selection and conversion cost O(n*k) time and space.
+        Nested input conversion additionally costs O(n*p), where
+        p is the input feature count. Object copies are shallow.
+        """
+        if not hasattr(self, "n_features_in_"):
+            raise RuntimeError("ColumnSelector must be fitted before transform.")
+
+        columns = self._validated_columns()
+        dtype = self._validated_dtype()
+
+        if dtype is None or self.dtype_ is None:
+            dtype_changed = dtype is not self.dtype_
+        else:
+            dtype_changed = dtype != self.dtype_
+
+        if columns != self.columns_ or dtype_changed:
+            raise RuntimeError("ColumnSelector parameters changed; fit again.")
+
+        array = self._as_table(X)
+
+        if array.shape[1] != self.n_features_in_:
+            raise ValueError(f"X must have {self.n_features_in_} features; "
+                             f"got {array.shape[1]}.")
+
+        return self._select(array, self.columns_, self.dtype_)
+
+    def fit_transform(self, X, y=None):
+        """Fit and return selected columns, equivalent to fit then transform.
+
+        Accept the same inputs and raise the same errors as fit and
+        transform. Time and space have the same asymptotic bounds.
+        """
+        return self.fit(X, y).transform(X)

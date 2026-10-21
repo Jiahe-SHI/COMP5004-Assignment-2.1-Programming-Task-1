@@ -121,9 +121,25 @@ def _vector_output(value, n_outputs=None):
 
 
 def _difference(f_upper, f_lower, step):
-    """Return (f_upper - f_lower) / step, rejecting overflow."""
-    with np.errstate(over="ignore", invalid="ignore", under="ignore"):
-        result = (f_upper - f_lower) / step
+    """Return a finite difference quotient without avoidable overflow.
+
+    Use direct subtraction normally. If subtraction overflows,
+    divide each operand by step before subtracting instead.
+
+    Raise ValueError if the resulting quotient is non-finite.
+    Time and additional space are O(m) for m output elements.
+    """
+    upper = np.asarray(f_upper, dtype=np.float64)
+    lower = np.asarray(f_lower, dtype=np.float64)
+
+    with np.errstate(over="ignore", invalid="ignore", divide="ignore", under="ignore",):
+        delta = upper - lower
+        result = delta / step
+
+        overflowed = ~np.isfinite(delta)
+        if np.any(overflowed):
+            fallback = upper / step - lower / step
+            result = np.where(overflowed, fallback, result)
 
     if not np.all(np.isfinite(result)):
         raise ValueError(

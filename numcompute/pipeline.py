@@ -4,6 +4,34 @@ import numpy as np
 def _has_method(obj, name):
     return callable(getattr(obj, name, None))
 
+def _check_unique_objects(obj, seen, *, path):
+    """Reject repeated objects within a built-in composition tree.
+
+    Traverse nested Pipeline and FeatureUnion objects. Treat custom
+    transformers and estimators as leaves without inspecting their
+    internal attributes.
+
+    Record objects before descending so cycles are also rejected.
+    """
+    object_id = id(obj)
+
+    if object_id in seen:
+        raise ValueError(
+            f"Step {path!r} reuses an object already present "
+            "in this composition; use a separate object for each step."
+        )
+
+    seen.add(object_id)
+
+    if isinstance(obj, Pipeline):
+        children = obj.steps
+    elif isinstance(obj, FeatureUnion):
+        children = obj.transformers
+    else:
+        return
+
+    for child_name, child in children:
+        _check_unique_objects(child,seen,path=f"{path}.{child_name}",)
 
 def _validate_named_steps(steps, *, name):
     if isinstance(steps, (str, bytes)) or not isinstance(steps, (list, tuple)):
@@ -36,15 +64,10 @@ def _validate_named_steps(steps, *, name):
         if step_name in names:
             raise ValueError(f"Step names must be unique; {step_name!r} is repeated.")
 
-        # Sharing one object would let a later fit overwrite earlier state.
-        if id(obj) in objects:
-            raise ValueError(
-                f"Step {step_name!r} reuses an object from an earlier step; "
-                "use a separate object for each step."
-            )
+        # Check both this object and objects inside nested compositions.
+        _check_unique_objects(obj,objects,path=f"{name}.{step_name}",)
 
         names.add(step_name)
-        objects.add(id(obj))
 
     return list(steps)
 
