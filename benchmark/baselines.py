@@ -94,3 +94,48 @@ def loop_standardize(X):
             ) / scale
 
     return result
+
+def loop_mse(y_true, y_pred):
+    """Compute mean squared error using a Python loop.
+
+    Parameters:
+        y_true, y_pred (array-like): Finite real numeric data with
+            identical shape (n,) or (n, p). Inputs must be non-empty.
+
+    Returns:
+        float: Scalar mean squared error over all elements.
+
+    Raises:
+        TypeError: Inputs contain unsupported numeric types.
+        ValueError: Inputs have invalid dimensions, unequal shapes,
+            no elements, irregular shapes, or non-finite values.
+
+    Complexity:
+        Time O(N). Additional space O(N) for validated copies,
+        where N is the total number of elements in either input.
+
+    Notes:
+        Inputs are not modified. Intended for ordinary benchmark
+        data; extreme magnitudes may overflow intermediate calculations.
+    """
+    # Validate finite numeric inputs and create independent float64 copies.
+    true = _as_float_array(y_true, name="y_true", finite=True)
+    pred = _as_float_array(y_pred, name="y_pred", finite=True)
+
+    if true.ndim not in (1, 2) or pred.ndim not in (1, 2):
+        raise ValueError("Inputs must be 1D or 2D.")
+    # require exact shape matching; broadcast is banned in this part
+    if true.shape != pred.shape:
+        raise ValueError("Inputs must have identical shapes.")
+
+    if true.size == 0:
+        raise ValueError("Inputs must not be empty.")
+    # accumulate aquared errors over all elements using python floats
+    total = 0.0
+    for actual, predicted in zip(true.flat, pred.flat):
+        difference = float(actual) - float(predicted)
+        total += difference * difference
+    
+    #divide by total element count if the inputs is 2d
+    return total / true.size
+

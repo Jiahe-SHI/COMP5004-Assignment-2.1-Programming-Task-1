@@ -2,9 +2,10 @@ import unittest
 import numpy as np
 from numpy.testing import assert_allclose, assert_array_equal
 
-from benchmark.baselines import loop_mean, loop_standardize
+from benchmark.baselines import loop_mean, loop_standardize, loop_mse
 from numcompute.stats import mean
 from numcompute.preprocessing import StandardScaler
+from numcompute.metrics import mse
 
 class TestLoopMean(unittest.TestCase):
     def test_known_result(self):
@@ -63,6 +64,47 @@ class TestLoopStandardize(unittest.TestCase):
             with self.subTest(data=data):
                 with self.assertRaises(ValueError):
                     loop_standardize(data)
+class TestLoopMSE(unittest.TestCase):
+    def test_known_results(self):
+        # Check 1D results and the total-element denominator for 2D.
+        self.assertAlmostEqual(
+            loop_mse([1, 2, 3], [1, 4, 2]), 5 / 3
+        )
+        self.assertEqual(
+            loop_mse([[1, 2], [3, 4]], [[1, 0], [5, 4]]),
+            2.0,
+        )
+
+    def test_matches_project_mse(self):
+        rng = np.random.default_rng(42)
+        true = rng.normal(size=1000)[::2]
+        pred = rng.normal(size=1000)[::2]
+        true_before = true.copy()
+        pred_before = pred.copy()
+
+        assert_allclose(
+            loop_mse(true, pred), mse(true, pred),
+            rtol=1e-10, atol=1e-12,
+        )
+        assert_array_equal(true, true_before)
+        assert_array_equal(pred, pred_before)
+
+    def test_invalid_input(self):
+        cases = (
+            ([], []),
+            ([1, 2], [1]),
+            ([1, 2], [[1, 2]]),
+            ([np.nan], [0]),
+            ([0], [np.inf]),
+            (1, 1),
+        )
+        for true, pred in cases:
+            with self.subTest(true=true, pred=pred):
+                with self.assertRaises(ValueError):
+                    loop_mse(true, pred)
+
+        with self.assertRaises(TypeError):
+            loop_mse([True, 2], [1, 2])
 
 if __name__ == "__main__":
     unittest.main()
