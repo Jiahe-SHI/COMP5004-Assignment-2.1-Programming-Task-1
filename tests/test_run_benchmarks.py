@@ -2,8 +2,12 @@ import unittest
 from unittest.mock import patch
 from benchmark.run_benchmarks import (
     check_equivalent, run_case, prepare_inputs, run_experiments,
+    save_raw_timings,
 )
 import numpy as np
+import csv
+import tempfile
+from pathlib import Path
 
 class TestCheckEquivalent(unittest.TestCase):
     def test_close_results(self):
@@ -189,6 +193,62 @@ class TestRunExperiments(unittest.TestCase):
 
         with self.assertRaises(ValueError):
             run_experiments(repeats=0)
+
+class TestSaveRawTimings(unittest.TestCase):
+    def test_csv_content(self):
+        # Fixed samples check file contents, not actual performance.
+        results = [
+            {
+                "case_id": "mean_20",
+                "baseline": {"times_seconds": [0.2, 0.3]},
+                "candidate": {"times_seconds": [0.01, 0.02]},
+            }
+        ]
+
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "results" / "raw.csv"
+            saved_path = save_raw_timings(results, path, "test_run")
+
+            self.assertEqual(saved_path, path)
+
+            with path.open(encoding="utf-8", newline="") as stream:
+                rows = list(csv.reader(stream))
+
+            self.assertEqual(rows, [
+                [
+                    "run_id", "case_id", "implementation",
+                    "repeat_index", "seconds_per_call",
+                ],
+                ["test_run", "mean_20", "baseline", "1", "0.2"],
+                ["test_run", "mean_20", "baseline", "2", "0.3"],
+                ["test_run", "mean_20", "candidate", "1", "0.01"],
+                ["test_run", "mean_20", "candidate", "2", "0.02"],
+            ])
+
+    def test_existing_file_unchanged(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "raw.csv"
+            save_raw_timings([], path, "first_run")
+            original = path.read_text(encoding="utf-8")
+
+            with self.assertRaises(FileExistsError):
+                save_raw_timings([], path, "second_run")
+
+            self.assertEqual(
+                path.read_text(encoding="utf-8"), original
+            )
+
+    def test_invalid_run_id(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "raw.csv"
+
+            with self.assertRaises(TypeError):
+                save_raw_timings([], path, 123)
+
+            with self.assertRaises(ValueError):
+                save_raw_timings([], path, "   ")
+
+            self.assertFalse(path.exists())
 
 if __name__ == "__main__":
     unittest.main()

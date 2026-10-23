@@ -1,5 +1,6 @@
 """Run correctness checks and performance comparisons."""
-
+import csv
+from pathlib import Path
 import numpy as np
 from numpy.testing import assert_allclose, assert_array_equal
 from numcompute.benchmarking import benchmark
@@ -265,3 +266,58 @@ def run_experiments(n=1000, seed=42, warmup=3, repeats=10):
 
     return results
 
+def save_raw_timings(results, path, run_id):
+    """Write individual timing samples to a new CSV file.
+
+    Parameters:
+        results (list): Result dictionaries from run_experiments.
+        path (str or Path): Destination CSV file.
+        run_id (str): Non-empty identifier linking one experiment run.
+
+    Returns:
+        Path: Saved CSV location. The file has five columns and one
+            data row per timing sample. Repeat indices start at 1.
+
+    Raises:
+        TypeError: run_id is not a string or path is unsupported.
+        ValueError: run_id is empty or contains only whitespace.
+        FileExistsError: The destination file already exists.
+        KeyError: A required result field is missing.
+        OSError: The directory or file cannot be created or written.
+
+    Complexity:
+        Time O(C + R), where C is the number of cases and R is the
+        total number of timing samples. Additional space O(1),
+        excluding the supplied results and file I/O buffers.
+    """
+    if not isinstance(run_id, str):
+        raise TypeError("run_id must be a string.")
+
+    if not run_id.strip():
+        raise ValueError("run_id must not be empty.")
+
+    csv_path = Path(path)
+    csv_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Create a new file so an existing result is not overwritten.
+    with csv_path.open("x", encoding="utf-8", newline="") as stream:
+        writer = csv.writer(stream)
+        writer.writerow([
+            "run_id", "case_id", "implementation",
+            "repeat_index", "seconds_per_call",
+        ])
+
+        for result in results:
+            for implementation in ("baseline", "candidate"):
+                times = result[implementation]["times_seconds"]
+
+                for repeat_index, seconds in enumerate(times, start=1):
+                    writer.writerow([
+                        run_id,
+                        result["case_id"],
+                        implementation,
+                        repeat_index,
+                        seconds,
+                    ])
+
+    return csv_path
