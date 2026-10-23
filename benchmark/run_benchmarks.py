@@ -114,3 +114,46 @@ def run_case(case_id, baseline, candidate, args=(),
         "candidate": candidate_timing,
         "speedup": speedup,
     }
+
+def prepare_inputs(n=1000, seed=42):
+    """Create reproducible float64 inputs for the benchmark cases.
+
+    Parameters:
+        n (int): Number of samples, default 1000.
+            Must be at least 10 to support fixed Top-k with k=10.
+        seed (int): Non-negative random seed, default 42.
+            Boolean values are rejected for both parameters.
+
+    Returns:
+        dict: values, y_true and y_pred have shape (n,).
+            features has shape (n, 10), with its first column constant.
+            All arrays contain finite float64 values.
+
+    Raises:
+        TypeError: n or seed is not an integer.
+        ValueError: n is less than 10 or seed is negative.
+
+    Complexity:
+        Time O(n) and additional space O(n).
+        The feature count is fixed at 10.
+    """
+    n = _validate_integer(n, name="n", minimum=10)
+    seed = _validate_integer(seed, name="seed", minimum=0)
+
+    # Use a local generator so global random state is unchanged.
+    rng = np.random.default_rng(seed)
+
+    values = rng.normal(size=n)
+    features = rng.normal(size=(n, 10))
+    y_true = rng.normal(size=n)
+    y_pred = rng.normal(size=n)
+
+    # Include a constant feature to exercise the scaler's rule.
+    features[:, 0] = 7.0
+
+    return {
+        "values": values,
+        "features": features,
+        "y_true": y_true,
+        "y_pred": y_pred,
+    }

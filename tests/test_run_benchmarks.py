@@ -1,6 +1,9 @@
 import unittest
 from unittest.mock import patch
-from benchmark.run_benchmarks import check_equivalent, run_case
+from benchmark.run_benchmarks import (
+    check_equivalent, run_case, prepare_inputs,
+)
+import numpy as np
 
 class TestCheckEquivalent(unittest.TestCase):
     def test_close_results(self):
@@ -77,6 +80,57 @@ class TestRunCase(unittest.TestCase):
             )
 
         self.assertIsNone(result["speedup"])
+
+"""
+check the shape and type of data, 
+Reproducibility, 
+no impact on global random state, 
+parameter validation
+"""
+class TestPrepareInputs(unittest.TestCase):
+    def test_shapes_and_values(self):
+        data = prepare_inputs(n=20, seed=42)
+
+        self.assertEqual(data["values"].shape, (20,))
+        self.assertEqual(data["features"].shape, (20, 10))
+        self.assertEqual(data["y_true"].shape, (20,))
+        self.assertEqual(data["y_pred"].shape, (20,))
+
+        for array in data.values():
+            self.assertEqual(array.dtype, np.dtype("float64"))
+            self.assertTrue(np.all(np.isfinite(array)))
+
+        self.assertTrue(np.all(data["features"][:, 0] == 7.0))
+
+    def test_reproducible_data(self):
+        # The same seed must reproduce every input array.
+        first = prepare_inputs(n=20, seed=42)
+        second = prepare_inputs(n=20, seed=42)
+
+        for name in first:
+            np.testing.assert_array_equal(first[name], second[name])
+
+    def test_global_random_state_unchanged(self):
+        before = np.random.get_state()
+        prepare_inputs(n=20, seed=42)
+        after = np.random.get_state()
+
+        self.assertEqual(before[0], after[0])
+        np.testing.assert_array_equal(before[1], after[1])
+        self.assertEqual(before[2:], after[2:])
+
+    def test_invalid_parameters(self):
+        with self.assertRaises(ValueError):
+            prepare_inputs(n=9)
+
+        with self.assertRaises(TypeError):
+            prepare_inputs(n=True)
+
+        with self.assertRaises(ValueError):
+            prepare_inputs(seed=-1)
+
+        with self.assertRaises(TypeError):
+            prepare_inputs(seed=1.5)
 
 if __name__ == "__main__":
     unittest.main()
