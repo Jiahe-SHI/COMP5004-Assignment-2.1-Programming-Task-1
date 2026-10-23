@@ -12,6 +12,7 @@ from numcompute.stats import mean
 from numcompute.preprocessing import StandardScaler
 from numcompute.metrics import mse
 from numcompute.sort_search import topk
+import subprocess
 
 def check_equivalent(expected, actual, *, exact=False):
     """Check output structure, shapes and numerical agreement.
@@ -394,3 +395,71 @@ def save_summary(results, path, run_id):
             ])
 
     return csv_path
+
+def git_info():
+    """Read the benchmark repository's code version and file status.
+
+    Parameters:
+        None. No input arrays are required.
+
+    Returns:
+        dict: commit contains the current commit identifier.
+            dirty is True when tracked or untracked changes exist.
+            status contains Git's file status text.
+            If Git cannot be queried, commit and status are "unknown",
+            dirty is None, and error contains an explanation.
+            No array output is produced.
+
+    Raises:
+        Git command failures, timeouts and unavailable Git are
+        recorded in the result instead of being raised.
+
+    Complexity:
+        Time depends on Git's repository scan, including the files
+        and file contents inspected. Additional Python space O(S),
+        where S is the total captured command output length.
+    """
+    # Find the project root from this script's location.
+    root = Path(__file__).resolve().parent.parent
+
+    try:
+        commit = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=10,
+        )
+
+        status = subprocess.run(
+            [
+                "git", "--no-optional-locks", "status",
+                "--porcelain", "--untracked-files=all",
+            ],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=10,
+        )
+
+    except (OSError, subprocess.SubprocessError) as error:
+        return {
+            "commit": "unknown",
+            "dirty": None,
+            "status": "unknown",
+            "error": str(error),
+        }
+
+    if status.stdout.strip():
+        dirty = True
+    else:
+        dirty = False
+
+    return {
+        "commit": commit.stdout.strip(),
+        "dirty": dirty,
+        "status": status.stdout,
+        "error": None,
+    }

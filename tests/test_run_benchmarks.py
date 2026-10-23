@@ -1,8 +1,8 @@
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 from benchmark.run_benchmarks import (
     check_equivalent, run_case, prepare_inputs, run_experiments,
-    save_raw_timings, save_summary,
+    save_raw_timings, save_summary, git_info,
 )
 import numpy as np
 import csv
@@ -324,6 +324,52 @@ class TestSaveSummary(unittest.TestCase):
                 save_summary([], path, "   ")
 
             self.assertFalse(path.exists())
+
+class TestGitInfo(unittest.TestCase):
+    def test_clean_repository(self):
+        # Simulate commit output and an empty file status.
+        with patch(
+            "benchmark.run_benchmarks.subprocess.run",
+            side_effect=[
+                Mock(stdout="abc123\n"),
+                Mock(stdout=""),
+            ],
+        ):
+            info = git_info()
+
+        self.assertEqual(info["commit"], "abc123")
+        self.assertFalse(info["dirty"])
+        self.assertEqual(info["status"], "")
+        self.assertIsNone(info["error"])
+
+    def test_dirty_repository(self):
+        status_text = " M example.py\n?? new_file.py\n"
+
+        with patch(
+            "benchmark.run_benchmarks.subprocess.run",
+            side_effect=[
+                Mock(stdout="abc123\n"),
+                Mock(stdout=status_text),
+            ],
+        ):
+            info = git_info()
+
+        self.assertEqual(info["commit"], "abc123")
+        self.assertTrue(info["dirty"])
+        self.assertEqual(info["status"], status_text)
+        self.assertIsNone(info["error"])
+
+    def test_git_unavailable(self):
+        with patch(
+            "benchmark.run_benchmarks.subprocess.run",
+            side_effect=FileNotFoundError("Git unavailable"),
+        ):
+            info = git_info()
+
+        self.assertEqual(info["commit"], "unknown")
+        self.assertIsNone(info["dirty"])
+        self.assertEqual(info["status"], "unknown")
+        self.assertIn("Git unavailable", info["error"])
 
 if __name__ == "__main__":
     unittest.main()
