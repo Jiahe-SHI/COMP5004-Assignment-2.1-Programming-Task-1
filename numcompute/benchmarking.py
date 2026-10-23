@@ -6,6 +6,9 @@ from statistics import median
 
 from .utils import _validate_integer
 
+import platform
+import numpy as np
+
 
 def benchmark(func, *args, warmup=1, repeats=5, **kwargs):
     """Time repeated calls; return samples, median and minimum in seconds.
@@ -35,4 +38,13 @@ def benchmark(func, *args, warmup=1, repeats=5, **kwargs):
         "times_seconds": times,
         "median_seconds": median(times),
         "min_seconds": min(times),
+    }
+
+def environment_info():
+    """Return runtime versions, OS and CPU information."""
+    return {
+        "python": platform.python_version(),
+        "numpy": np.__version__,
+        "os": platform.platform(),
+        "cpu": platform.processor() or "unknown",
     }

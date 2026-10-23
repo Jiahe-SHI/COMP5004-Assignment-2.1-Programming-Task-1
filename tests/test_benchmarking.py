@@ -1,8 +1,7 @@
 import unittest
 from unittest.mock import Mock, call, patch
 
-from numcompute.benchmarking import benchmark
-
+from numcompute.benchmarking import benchmark, environment_info
 """
 first, we record:
 Timing results, 
@@ -52,6 +51,24 @@ class TestBenchmark(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "failed"):
             benchmark(func, warmup=0)
 
+
+class TestEnvironmentInfo(unittest.TestCase):
+    def test_required_information(self):
+        info = environment_info()
+
+        self.assertEqual(
+            set(info), {"python", "numpy", "os", "cpu"}
+        )
+        for value in info.values():
+            self.assertIsInstance(value, str)
+            self.assertTrue(value.strip())
+
+    def test_unknown_cpu(self):
+        with patch(
+            "numcompute.benchmarking.platform.processor",
+            return_value="",
+        ):
+            self.assertEqual(environment_info()["cpu"], "unknown")
 
 if __name__ == "__main__":
     unittest.main()
