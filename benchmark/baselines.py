@@ -1,4 +1,4 @@
-from numcompute.utils import _as_float_array
+from numcompute.utils import _as_float_array, _validate_integer
 import math
 import numpy as np
 
@@ -139,3 +139,44 @@ def loop_mse(y_true, y_pred):
     #divide by total element count if the inputs is 2d
     return total / true.size
 
+def full_sort_topk(values, k):
+    """Select the largest k values using a complete sort.
+
+    Parameters:
+        values (array-like, shape (n,)): Finite real numeric data,
+            converted to float64. Benchmark inputs use float64.
+        k (int): Number of selected values, satisfying 0 <= k <= n.
+            Boolean values are rejected.
+
+    Returns:
+        tuple: Selected float64 values and original integer indices,
+            both with shape (k,). Values are descending; ties use
+            ascending original indices. k=0 returns empty arrays.
+
+    Raises:
+        TypeError: Input has unsupported types or k is not an integer.
+        ValueError: Input is not 1D, contains non-finite values,
+            has an irregular shape, or k is outside [0, n].
+
+    Complexity:
+        Time O(n log n). Additional space O(n).
+
+    Notes:
+        Input is not modified. The baseline sorts every element.
+        Equivalence with project topk is checked on float64 data.
+    """
+    data = _as_float_array(values, ndim=1, finite=True)
+    k = _validate_integer(k, name="k", minimum=0)
+
+    if k > data.size:
+        raise ValueError("k must not exceed the number of values.")
+
+    # Original indices provide the tie-breaking key.
+    indices = np.arange(data.size)
+
+    # Negative values give descending order; indices break ties.
+    order = np.lexsort((indices, -data))
+
+    # Select only after completing the full sort.
+    selected = order[:k]
+    return data[selected], selected

@@ -2,10 +2,13 @@ import unittest
 import numpy as np
 from numpy.testing import assert_allclose, assert_array_equal
 
-from benchmark.baselines import loop_mean, loop_standardize, loop_mse
+from benchmark.baselines import (
+    loop_mean, loop_standardize, loop_mse, full_sort_topk,
+)
 from numcompute.stats import mean
 from numcompute.preprocessing import StandardScaler
 from numcompute.metrics import mse
+from numcompute.sort_search import topk
 
 class TestLoopMean(unittest.TestCase):
     def test_known_result(self):
@@ -105,6 +108,54 @@ class TestLoopMSE(unittest.TestCase):
 
         with self.assertRaises(TypeError):
             loop_mse([True, 2], [1, 2])
+
+class TestFullSortTopK(unittest.TestCase):
+    def test_boundary_ties(self):
+        # Earlier indices win when a tie crosses the cutoff.
+        values, indices = full_sort_topk([5, 9, 9, 9, 4], 2)
+        assert_array_equal(values, [9, 9])
+        assert_array_equal(indices, [1, 2])
+
+    def test_zero_and_full_selection(self):
+        values, indices = full_sort_topk([], 0)
+        self.assertEqual(values.shape, (0,))
+        self.assertEqual(indices.shape, (0,))
+
+        values, indices = full_sort_topk([2, 1, 2], 3)
+        assert_array_equal(values, [2, 2, 1])
+        assert_array_equal(indices, [0, 2, 1])
+
+    def test_matches_project_topk(self):
+        # Float64 data contains ties and uses a non-contiguous view.
+        rng = np.random.default_rng(42)
+        data = rng.integers(-5, 6, size=100).astype(np.float64)[::2]
+        before = data.copy()
+
+        for k in (0, 1, 10, data.size):
+            with self.subTest(k=k):
+                values, indices = full_sort_topk(data, k)
+                expected_values, expected_indices = topk(data, k)
+                assert_array_equal(values, expected_values)
+                assert_array_equal(indices, expected_indices)
+
+        assert_array_equal(data, before)
+
+    def test_invalid_input(self):
+        for data, k in (
+            ([1, 2], -1),
+            ([1, 2], 3),
+            ([[1, 2]], 1),
+            ([np.nan], 1),
+            ([np.inf], 1),
+        ):
+            with self.subTest(data=data, k=k):
+                with self.assertRaises(ValueError):
+                    full_sort_topk(data, k)
+
+        for k in (True, 1.5):
+            with self.subTest(k=k):
+                with self.assertRaises(TypeError):
+                    full_sort_topk([1, 2], k)
 
 if __name__ == "__main__":
     unittest.main()
