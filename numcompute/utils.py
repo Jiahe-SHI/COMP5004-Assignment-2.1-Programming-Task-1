@@ -4,7 +4,36 @@ from numbers import Real
 import numpy as np
 
 def _as_float_array(x, *, name="x", ndim=None, finite=False):
-    """Validate real numeric input and return an independent float64 array."""
+    """Validate real numeric input and return an independent float64 array.
+
+    Parameters
+    ----------
+    x : array-like
+        Real numeric input. Boolean, complex, string and object arrays
+        are not supported.
+    name : str
+        Input name used in error messages.
+    ndim : int or None
+        Required number of dimensions, or None for any shape.
+    finite : bool
+        If True, reject NaN and positive/negative infinity.
+
+    Returns
+    -------
+    numpy.ndarray
+        Independent float64 array preserving the input shape.
+
+    Raises
+    ------
+    TypeError
+        If the input contains unsupported types.
+    ValueError
+        If the shape is invalid or finite=True and values are non-finite.
+
+    Notes
+    -----
+    Time: O(n). Additional space: O(n), where n is the element count.
+    """
 
     try:
         array = np.asarray(x)
@@ -71,7 +100,35 @@ def _validate_integer(value, *, name, minimum=None):
     return value
 
 def sigmoid(x):
-    """Compute the sigmoid function without exponential overflow."""
+    """Compute the sigmoid function without exponential overflow.
+
+    Parameters
+    ----------
+    x : array-like
+        Real numeric input of any shape, including a scalar.
+        Boolean, complex, string and object data are rejected.
+
+    Returns
+    -------
+    numpy.ndarray
+        Float64 result with the same shape as the input.
+        Scalar input produces a zero-dimensional array.
+        Empty input produces an empty array.
+
+    Raises
+    ------
+    TypeError
+        If the input contains unsupported types.
+    ValueError
+        If the input has an irregular shape.
+
+    Notes
+    -----
+    NaN propagates. Positive infinity returns 1, and negative
+    infinity returns 0. The caller's input is not modified.
+
+    Time: O(n). Additional space: O(n).
+    """
     array = _as_float_array(x)
 
     result = np.empty_like(array)
@@ -87,7 +144,13 @@ def sigmoid(x):
     return result
 
 def _validate_axis(axis, ndim):
-    """Validate one integer axis and return its non-negative index."""
+    """Validate one integer axis and return its non-negative index.
+
+    Raise TypeError for unsupported types and ValueError for an
+    out-of-range axis. Boolean values are rejected.
+
+    Time: O(1). Additional space: O(1).
+    """
     axis = _validate_integer(axis, name="axis")
 
     if not -ndim <= axis < ndim:
@@ -97,7 +160,54 @@ def _validate_axis(axis, ndim):
 
 
 def softmax(x, axis=-1):
-    """Compute stable softmax probabilities along one axis."""
+    """Compute stable softmax probabilities along one axis.
+
+    Parameters
+    ----------
+    x : array-like
+        Real numeric input with at least one dimension.
+        Converted to float64 without modifying the input.
+        Boolean, complex, string and object data are rejected.
+    axis : int, default=-1
+        Axis along which probabilities are normalized.
+        Negative axes are supported. Boolean values are rejected.
+        The selected axis must have nonzero length.
+
+    Returns
+    -------
+    numpy.ndarray
+        Independent float64 array with the same shape as x.
+        For slices containing finite values and no NaN or positive
+        infinity, probabilities sum to 1 within floating-point
+        precision. Negative infinity receives probability 0.
+
+    Raises
+    ------
+    TypeError
+        If x contains unsupported types or axis is not an integer.
+    ValueError
+        If x has an irregular shape, is scalar, axis is out of
+        range, or the selected axis is empty.
+
+    Notes
+    -----
+    Subtracts the slice maximum before exponentiation to avoid
+    exponential overflow. Very small probabilities may underflow
+    to zero.
+
+    Special values are handled separately within each slice:
+    - Any NaN makes the entire output slice NaN.
+    - Positive infinities share probability equally; all other
+      entries receive 0, unless NaN is present.
+    - A slice containing only negative infinity returns all NaN.
+
+    Zero-length dimensions outside the selected axis are allowed.
+    The caller's input is not modified.
+
+    Time complexity: O(N).
+    Additional space complexity: O(N), including input conversion,
+    output and temporary arrays, where N is the input element count.
+    """
     array = _as_float_array(x)
 
     if array.ndim == 0:
@@ -140,7 +250,43 @@ def softmax(x, axis=-1):
     return result
 
 def logsumexp(x, axis=None, keepdims=False):
-    """Compute log(sum(exp(x))) using a stable max-shift calculation."""
+    """Compute log(sum(exp(x))) using a stable max-shift calculation.
+
+    Parameters
+    ----------
+    x : array-like
+        Real numeric input. Boolean, complex, string and object
+        data are rejected.
+    axis : int or None, default=None
+        Reduce over all elements if None, otherwise over one axis.
+        Negative axes are supported.
+        Scalar input supports only axis=None.
+    keepdims : bool, default=False
+        If True, retain reduced dimensions with size 1.
+
+    Returns
+    -------
+    numpy.float64 or numpy.ndarray
+        Float64 result. Reduced axes are removed unless keepdims=True.
+        Return a scalar when the output has no dimensions.
+
+    Raises
+    ------
+    TypeError
+        If input or parameter types are unsupported.
+    ValueError
+        If the input is irregular or axis is out of range.
+
+    Notes
+    -----
+    NaN propagates within each reduction slice.
+    Positive infinity returns infinity unless NaN is present.
+    All-negative-infinity and empty slices return negative infinity.
+    The caller's input is not modified.
+
+    Time: O(n + r). Additional space: O(n + r), where n is the
+    input element count and r is the output element count.
+    """
     array = _as_float_array(x)
 
     if not isinstance(keepdims, (bool, np.bool_)):
@@ -178,7 +324,44 @@ def logsumexp(x, axis=None, keepdims=False):
     return result[()] if result.ndim == 0 else result
 
 def euclidean_distances(X, Y=None):
-    """Compute pairwise Euclidean distances between sample rows."""
+    """Compute pairwise Euclidean distances between sample rows.
+
+    Parameters
+    ----------
+    X : array-like of shape (n_samples, n_features)
+        Finite real numeric input with at least one feature.
+    Y : array-like of shape (m_samples, n_features) or None
+        Finite real numeric input with the same feature count.
+        If None, compare X with itself.
+
+    Returns
+    -------
+    numpy.ndarray of shape (n_samples, m_samples)
+        Float64 distance matrix. Zero samples are allowed.
+        Distances beyond the float64 range return positive infinity.
+
+    Raises
+    ------
+    TypeError
+        If inputs contain unsupported data types.
+    ValueError
+        If inputs are not 2D, contain non-finite values,
+        have zero features or have different feature counts.
+
+    Notes
+    -----
+    Direct coordinate differences avoid cancellation from subtracting
+    large squared norms. Hypot reduction avoids unnecessary overflow
+    or underflow from explicitly squaring differences.
+
+    Computation uses blocks of at most 64 rows from each input.
+    Neither input is modified.
+
+    For n and m samples with d features:
+    Time: O((n + m) * d + n * m * d).
+    Additional space, including copies and output:
+    O((n + m) * d + n * m + b * b * d), where b = 64.
+    """
     X_array = _as_float_array(X, name="X", ndim=2, finite=True)
 
     if Y is None:
@@ -214,7 +397,51 @@ def euclidean_distances(X, Y=None):
     return result
 
 def batch_iter(X,batch_size=32,shuffle=False,random_state=None,drop_last=False,):
-    """Yield independent array batches along the first dimension."""
+    """Yield independent array batches along the first dimension.
+
+    Parameters
+    ----------
+    X : array-like
+        Input with at least one dimension. Preserve its dtype.
+    batch_size : int, default=32
+        Positive batch size. Boolean values are rejected.
+    shuffle : bool, default=False
+        Shuffle sample indices using a local random generator.
+    random_state : int or None, default=None
+        Non-negative integer seed. Boolean values are rejected.
+        Validated but unused when shuffle=False.
+    drop_last : bool, default=False
+        Discard the final incomplete batch if True.
+
+    Yields
+    ------
+    numpy.ndarray
+        Independent array copies with shape
+        (batch_length, *X.shape[1:]).
+        Empty input yields no batches.
+
+    Raises
+    ------
+    TypeError
+        If parameter types are unsupported.
+    ValueError
+        If X is scalar or irregular, batch_size is not positive,
+        or random_state is negative.
+
+    Notes
+    -----
+    Validation occurs when iteration starts.
+    The input and global NumPy random state are not modified.
+    Do not modify X while consuming the iterator.
+    Object arrays copy references, not the nested Python objects.
+
+    For an ndarray with n rows and d elements per row:
+    Full iteration takes O(n + n*d) time.
+    Additional space is O(b*d) without shuffling and O(n + b*d)
+    with shuffling, where b = min(batch_size, n), assuming the
+    consumer does not retain previous batches.
+    Converting non-array input may require O(n*d) extra space.
+    """
     batch_size = _validate_integer(batch_size, name="batch_size", minimum=1)
 
     for name, value in (("shuffle", shuffle),("drop_last", drop_last),):

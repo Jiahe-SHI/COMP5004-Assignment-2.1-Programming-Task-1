@@ -6,7 +6,30 @@ from .utils import _as_float_array
 
 
 class SimpleImputer:
-    """Replace numeric NaN cells with a finite constant."""
+    """Replace numeric NaN cells with a finite constant.
+    
+        Parameters
+        ----------
+        strategy : str, default='constant'
+            Only 'constant' is supported in the baseline.
+        fill_value : real numeric scalar, default=0.0
+            Must be finite and representable as float64. Booleans are rejected.
+    
+        Attributes
+        ----------
+        n_features_in_ : int
+            Number of columns recorded by the last successful fit.
+        fill_value_ : float
+            Validated constant recorded by the last successful fit. Changes to
+            constructor parameters take effect on the next fit.
+    
+        Notes
+        -----
+        Inputs must be 2D real numeric data, converted to independent float64
+        arrays using the shared validator. NaN is the only missing value;
+        other values, including infinities, are preserved. Scalers separately
+        reject infinity. All-NaN columns are allowed. No training rows are stored.
+        """
 
     def __init__(self, strategy='constant', fill_value=0.0):
         """Store and validate parameters; O(1) time and space.
@@ -83,7 +106,19 @@ class StandardScaler:
         return array
 
     def fit(self, X, y=None):
-        """Learn column means and population standard deviations."""
+        """Learn column means and population standard deviations.
+
+        X: 2D real numeric data of shape (n_samples, n_features).
+        y: ignored; included for the shared transformer interface.
+        Return self. A successful refit replaces previous fitted state.
+
+        Raise TypeError for unsupported input types.
+        Raise ValueError for invalid shape, empty data, infinity,
+        all-NaN columns or non-finite computed statistics.
+
+        Time: O(n_samples * n_features).
+        Additional space: O(n_samples * n_features).
+        """
         array = self._validate_input(X, fitting=True)
 
         # Calculate each column's statistics, ignoring NaN.
@@ -105,7 +140,20 @@ class StandardScaler:
         return self
 
     def transform(self, X):
-        """Transform data using the previously fitted statistics."""
+        """Transform data using the previously fitted statistics.
+
+        X: 2D real numeric data with n_features_in_ columns.
+        Return an independent float64 array with the same shape.
+        Allow zero samples and preserve NaN. Do not refit or modify X.
+
+        Raise RuntimeError before fit.
+        Raise TypeError for unsupported input types.
+        Raise ValueError for invalid shape, wrong feature count,
+        infinity or arithmetic overflow.
+
+        Time: O(n_samples * n_features).
+        Additional space: O(n_samples * n_features).
+        """
         if not hasattr(self, "n_features_in_"):
             raise RuntimeError("StandardScaler must be fitted before transform.")
 
@@ -194,7 +242,17 @@ class MinMaxScaler:
         return array
 
     def fit(self, X, y=None):
-        """Learn each column's minimum and maximum; return self."""
+        """Learn each column's minimum and maximum; return self.
+
+        X: nonempty 2D real numeric data, shape (N, D).
+        y: ignored. All-NaN columns and infinity are rejected.
+        A successful refit replaces previous state; a failed fit preserves it.
+
+        Raise TypeError for invalid types; ValueError for invalid shape,
+        empty data, invalid bounds or an unrepresentable training range.
+
+        Time: O(N * D). Additional space: O(N * D).
+        """
         lower, upper, span = self._validate_range()
         array = self._validate_input(X, fitting=True)
 
@@ -221,7 +279,17 @@ class MinMaxScaler:
         return self
 
     def transform(self, X):
-        """Scale X using the previously fitted parameters."""
+        """Scale X using the previously fitted parameters.
+
+        X: 2D real numeric data with n_features_in_ columns.
+        Return an independent float64 array of the same shape.
+        Allow zero samples, preserve NaN, and do not clip or refit.
+
+        Raise RuntimeError before fit; TypeError for invalid input types;
+        ValueError for invalid shape, wrong columns, infinity or overflow.
+
+        Time: O(N * D). Additional space: O(N * D).
+        """
         if not hasattr(self, "n_features_in_"):
             raise RuntimeError("MinMaxScaler must be fitted before transform.")
 
@@ -325,7 +393,18 @@ class OneHotEncoder:
         return array
 
     def fit(self, X, y=None):
-        """Learn categories from nonempty 2D input X; return self."""
+        """Learn categories from nonempty 2D input X; return self.
+
+        X has shape (N, D); y is ignored.
+        Store categories_ and n_features_in_. Missing values are allowed.
+        Successful refit replaces state; failed fit preserves previous state.
+
+        Raise TypeError for unsupported or mixed category types.
+        Raise ValueError for invalid shape, empty data, infinity or options.
+
+        Expected time: O(N * D), treating category hashing as constant time.
+        Additional space: O(N * D + K), where K is total learned categories.
+        """
         option = self._validate_option()
         array = self._validate_input(X, fitting=True)
 
@@ -358,7 +437,19 @@ class OneHotEncoder:
         return self
 
     def transform(self, X):
-        """Encode 2D input using previously learned categories."""
+        """Encode 2D input using previously learned categories.
+
+        X has shape (N, n_features_in_); zero samples are allowed.
+        Return an independent float64 array of shape (N, K).
+        Unknown categories raise an error or produce an all-zero block
+        for their input feature, depending on the fitted option.
+
+        Raise RuntimeError before fit; TypeError for invalid categories;
+        ValueError for invalid shape, feature count, infinity or unknowns.
+
+        Expected time: O(N * D + N * K).
+        Additional space: O(N * D + N * K), including dense output.
+        """
         if not hasattr(self, "n_features_in_"):
             raise RuntimeError("OneHotEncoder must be fitted before transform.")
 

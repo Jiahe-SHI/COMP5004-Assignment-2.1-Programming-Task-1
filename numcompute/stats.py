@@ -51,7 +51,48 @@ def _scalar_or_array(result):
 
 
 def mean(X, axis=None, nan_policy="propagate"):
-    """Return the arithmetic mean over all values or one axis."""
+    """Return the arithmetic mean over all values or one axis.
+
+    Parameters
+    ----------
+    X : array-like
+        Real numeric input, converted to float64 without modifying X.
+        Boolean, complex, string and object inputs are rejected.
+        NaN is handled according to nan_policy; infinity is rejected.
+    axis : int or None, default=None
+        None reduces all elements. An integer reduces one axis.
+        Negative axes are supported; tuple axes are not supported.
+        Scalar input accepts only axis=None.
+    nan_policy : str, default="propagate"
+        "propagate": each slice containing NaN returns NaN.
+        "omit": ignore NaN within each slice.
+        "raise": reject any NaN before calculation.
+
+    Returns
+    -------
+    numpy.float64 or numpy.ndarray
+        Float64 mean with the reduced axis removed.
+        Return a scalar when no dimensions remain.
+        Empty slices and slices with no valid values return NaN,
+        without deliberately emitting warnings.
+
+    Raises
+    ------
+    TypeError
+        If input or parameter types are unsupported.
+    ValueError
+        If the axis or policy is invalid, infinity is present,
+        or NaN is present with nan_policy="raise".
+
+    Notes
+    -----
+    Time complexity: O(N).
+    Additional space complexity: O(N), including input conversion
+    and temporary arrays, where N is the number of input elements.
+
+    Computation uses float64. A sum outside its representable range
+    may overflow even when all input values are finite.
+    """
     array, axis, nan_policy, nan_mask = _prepare_reduction(
         X, axis, nan_policy
     )
@@ -75,7 +116,55 @@ def mean(X, axis=None, nan_policy="propagate"):
     return _scalar_or_array(result)
 
 def variance(X, axis=None, ddof=0, nan_policy="propagate"):
-    """Return variance over all values or one axis."""
+    """Return variance over all values or one axis.
+
+    Parameters
+    ----------
+    X : array-like
+        Real numeric input converted to float64.
+        Boolean, complex, string and object inputs are rejected.
+        Infinity is rejected; NaN follows nan_policy.
+    axis : int or None, default=None
+        Reduce all elements or one integer axis.
+        Negative axes are supported; tuple axes are rejected.
+        Scalar input accepts only axis=None.
+    ddof : int, default=0
+        Non-negative integer subtracted from the valid sample count.
+        Boolean values are rejected.
+        Use 0 for population variance and 1 for sample variance.
+    nan_policy : str, default="propagate"
+        "propagate": return NaN for slices containing NaN.
+        "omit": ignore NaN separately within each slice.
+        "raise": reject any NaN before calculation.
+
+    Returns
+    -------
+    numpy.float64 or numpy.ndarray
+        Float64 variance with the reduced axis removed.
+        Return a scalar when no dimensions remain.
+        Empty slices, all-NaN slices and slices with valid_count <= ddof
+        return NaN without deliberately emitting warnings.
+
+    Raises
+    ------
+    TypeError
+        If input or parameter types are unsupported.
+    ValueError
+        If ddof is negative, axis or policy is invalid,
+        infinity is present, or nan_policy="raise" encounters NaN.
+
+    Notes
+    -----
+    Uses a centered two-pass calculation instead of subtracting
+    the squared mean from the mean of squared values.
+
+    Time complexity: O(N).
+    Additional space complexity: O(N), including input conversion
+    and temporary arrays.
+
+    Float64 range and precision still apply. Extreme finite input
+    may overflow during summation, subtraction or squaring.
+    """
     ddof = _validate_integer(ddof, name="ddof", minimum=0)
 
     array, axis, nan_policy, nan_mask = _prepare_reduction(X, axis, nan_policy)
@@ -116,7 +205,47 @@ def variance(X, axis=None, ddof=0, nan_policy="propagate"):
 
 
 def std(X, axis=None, ddof=0, nan_policy="propagate"):
-    """Return standard deviation over all values or one axis."""
+    """Return standard deviation over all values or one axis.
+
+    Parameters
+    ----------
+    X : array-like
+        Real numeric input converted to float64; infinity is rejected.
+        Boolean, complex, string and object inputs are rejected.
+    axis : int or None, default=None
+        Reduce all elements or one integer axis, including negative
+        axes. Scalar input accepts only axis=None.
+    ddof : int, default=0
+        Non-negative integer; boolean values are rejected.
+        The variance denominator is valid_count - ddof.
+    nan_policy : str, default="propagate"
+        One of "propagate", "omit" or "raise".
+
+    Returns
+    -------
+    numpy.float64 or numpy.ndarray
+        Square root of variance, with the reduced axis removed.
+        Return a scalar when no dimensions remain.
+        Empty slices, all-NaN slices and valid_count <= ddof
+        return NaN without deliberately emitting warnings.
+
+    Raises
+    ------
+    TypeError
+        If input or parameter types are unsupported.
+    ValueError
+        If a parameter value is invalid, infinity is present,
+        or nan_policy="raise" encounters NaN.
+
+    Notes
+    -----
+    Reuses variance and its float64 numerical limits.
+    If variance overflows, std also returns a non-finite result,
+    even when the mathematical standard deviation is representable.
+
+    Time complexity: O(N).
+    Additional space complexity: O(N).
+    """
     result = variance(X, axis=axis, ddof=ddof, nan_policy=nan_policy)
 
     return _scalar_or_array(np.sqrt(result))
@@ -146,12 +275,82 @@ def _extreme(X, axis, nan_policy, *, largest):
 
 
 def min(X, axis=None, nan_policy="propagate"):
-    """Return the minimum over all values or one axis."""
+    """Return the minimum over all values or one axis.
+
+    Parameters
+    ----------
+    X : array-like
+        Real numeric input converted to float64 without modifying X.
+        Boolean, complex, string, object and infinite input is rejected.
+    axis : int or None, default=None
+        Reduce all elements or one integer axis, including negative
+        axes. Scalar input accepts only axis=None.
+    nan_policy : str, default="propagate"
+        "propagate": return NaN for slices containing NaN.
+        "omit": ignore NaN within each slice.
+        "raise": reject any NaN before calculation.
+
+    Returns
+    -------
+    numpy.float64 or numpy.ndarray
+        Minimum with the reduced axis removed.
+        Return a scalar when no dimensions remain.
+        Empty and all-NaN slices return NaN without warnings.
+
+    Raises
+    ------
+    TypeError
+        If input or parameter types are unsupported.
+    ValueError
+        If the axis or policy is invalid, infinity is present,
+        or nan_policy="raise" encounters NaN.
+
+    Notes
+    -----
+    Time complexity: O(N).
+    Additional space complexity: O(N), including input conversion
+    and temporary arrays.
+    """
     return _extreme(X, axis, nan_policy, largest=False)
 
 
 def max(X, axis=None, nan_policy="propagate"):
-    """Return the maximum over all values or one axis."""
+    """Return the maximum over all values or one axis.
+
+    Parameters
+    ----------
+    X : array-like
+        Real numeric input converted to float64 without modifying X.
+        Boolean, complex, string, object and infinite input is rejected.
+    axis : int or None, default=None
+        Reduce all elements or one integer axis, including negative
+        axes. Scalar input accepts only axis=None.
+    nan_policy : str, default="propagate"
+        "propagate": return NaN for slices containing NaN.
+        "omit": ignore NaN within each slice.
+        "raise": reject any NaN before calculation.
+
+    Returns
+    -------
+    numpy.float64 or numpy.ndarray
+        Maximum with the reduced axis removed.
+        Return a scalar when no dimensions remain.
+        Empty and all-NaN slices return NaN without warnings.
+
+    Raises
+    ------
+    TypeError
+        If input or parameter types are unsupported.
+    ValueError
+        If the axis or policy is invalid, infinity is present,
+        or nan_policy="raise" encounters NaN.
+
+    Notes
+    -----
+    Time complexity: O(N).
+    Additional space complexity: O(N), including input conversion
+    and temporary arrays.
+    """
     return _extreme(X, axis, nan_policy, largest=True)
 
 
@@ -173,7 +372,46 @@ def _safe_midpoint(lower, upper):
 
 
 def median(X, axis=None, nan_policy="propagate"):
-    """Return the median over all values or one axis."""
+    """Return the median over all values or one axis.
+
+    Parameters
+    ----------
+    X : array-like
+        Real numeric input converted to float64 without modifying X.
+        Boolean, complex, string, object and infinite input is rejected.
+    axis : int or None, default=None
+        Reduce all elements or one integer axis, including negative
+        axes. Scalar input accepts only axis=None.
+    nan_policy : str, default="propagate"
+        "propagate": return NaN for slices containing NaN.
+        "omit": ignore NaN within each slice.
+        "raise": reject any NaN before calculation.
+
+    Returns
+    -------
+    numpy.float64 or numpy.ndarray
+        Median with the reduced axis removed.
+        Return a scalar when no dimensions remain.
+        Empty and all-NaN slices return NaN without warnings.
+
+    Raises
+    ------
+    TypeError
+        If input or parameter types are unsupported.
+    ValueError
+        If the axis or policy is invalid, infinity is present,
+        or nan_policy="raise" encounters NaN.
+
+    Notes
+    -----
+    Sorts each reduction slice. For even valid counts, averages
+    the two middle values using an overflow-aware midpoint.
+
+    Time complexity: O(N log L) for slice length L >= 2;
+    O(N) for shorter slices.
+    Additional space complexity: O(N), including input conversion,
+    sorting and temporary arrays. Output storage is also required.
+    """
     array, axis, nan_policy, nan_mask = _prepare_reduction(X, axis, nan_policy)
 
     # Put the reduction dimension last for uniform indexing.
@@ -254,7 +492,62 @@ def _linear_interpolate(lower, upper, weight):
 
 
 def quantile(values,q,axis=None, method="linear",nan_policy="propagate",):
-    """Return quantiles over all values or one axis."""
+    """Return quantiles over all values or one axis.
+
+    Parameters
+    ----------
+    values : array-like
+        Real numeric input converted to float64 without modification.
+        Boolean, complex, string, object and infinite input is rejected.
+    q : real scalar or 1D array-like
+        Finite quantile levels in [0, 1].
+        Boolean values are rejected. An empty 1D array is allowed.
+    axis : int or None, default=None
+        Reduce all elements or one integer axis, including negative
+        axes. Scalar input accepts only axis=None.
+    method : str, default="linear"
+        One of "linear", "lower", "higher" or "midpoint".
+    nan_policy : str, default="propagate"
+        "propagate": return NaN for slices containing NaN.
+        "omit": ignore NaN separately within each slice.
+        "raise": reject any NaN before calculation.
+
+    Returns
+    -------
+    numpy.float64 or numpy.ndarray
+        Float64 quantiles.
+
+        A scalar q adds no output dimension.
+        A 1D q adds a leading dimension of length len(q).
+        Remaining dimensions match the input with the reduced axis
+        removed. With axis=None, no input dimensions remain.
+
+        Return a scalar when no dimensions remain.
+        Empty and all-NaN slices return NaN without warnings.
+
+    Raises
+    ------
+    TypeError
+        If input or parameter types are unsupported.
+    ValueError
+        If q has invalid shape, range or non-finite values;
+        method or axis is invalid; input contains infinity;
+        or nan_policy="raise" encounters NaN.
+
+    Notes
+    -----
+    Sort each slice and compute positions as q * (valid_count - 1).
+    All requested quantiles share the same sorted data.
+
+    Let N be the input size, L the reduction slice length,
+    S the number of slices and Q the number of requested quantiles.
+    Time complexity: O(N log L + Q*S) for L >= 2;
+    O(N + Q*S) for shorter slices.
+    Additional space complexity: O(N + Q*S + S + Q).
+
+    Interpolation avoids avoidable overflow, but float64 rounding
+    and underflow still limit numerical precision.
+    """
     levels, method = _validate_quantile_parameters(q, method)
 
     array, axis, nan_policy, nan_mask = _prepare_reduction(values, axis, nan_policy)
@@ -389,7 +682,56 @@ def _histogram_edges(values, bins, range):
 
 
 def histogram(values, bins=10, range=None, nan_policy="omit"):
-    """Count 1D numeric values in histogram bins."""
+    """Count 1D numeric values in histogram bins.
+
+    Parameters
+    ----------
+    values : array-like, shape (n,)
+        Real numeric input converted to float64 without modification.
+        Boolean, complex, string, object and infinite input is rejected.
+    bins : int or 1D array-like, default=10
+        Positive integer number of equal-width bins, or finite,
+        strictly increasing edges with at least two entries.
+        Boolean values are rejected.
+    range : pair of finite real numbers or None, default=None
+        Lower and upper bounds for integer bins, with lower < upper.
+        Cannot be supplied with explicit bin edges.
+    nan_policy : str, default="omit"
+        "omit": ignore NaN values.
+        "raise": reject any NaN.
+        "propagate" is unsupported because counts are integers.
+
+    Returns
+    -------
+    counts : numpy.ndarray, shape (n_bins,)
+        Integer counts. Values outside the selected range are ignored.
+    edges : numpy.ndarray, shape (n_bins + 1,)
+        Independent float64 bin edges.
+
+    Raises
+    ------
+    TypeError
+        If input or parameter types are unsupported.
+    ValueError
+        If input is not 1D, parameters have invalid values or shapes,
+        infinity is present, nan_policy="raise" encounters NaN,
+        or distinct finite edges cannot be represented.
+
+    Notes
+    -----
+    Each bin includes its left edge and excludes its right edge,
+    except the final bin, which includes both edges.
+
+    Empty data produces zero counts. With integer bins and no range,
+    empty data uses (0, 1). Constant data tries (value-0.5, value+0.5);
+    if that cannot produce distinct edges, an explicit range or edge
+    array is required.
+
+    Uses binary search to assign values to bins.
+    For N values and B bins, time complexity is O(N log B + B)
+    for B >= 2, and O(N + B) otherwise.
+    Additional space complexity: O(N + B).
+    """
     nan_policy = _validate_nan_policy(nan_policy)
 
     if nan_policy == "propagate":
@@ -423,12 +765,35 @@ class StreamingStats:
     Uses the batch-merge equivalent of Welford's algorithm."""
 
     def __init__(self, nan_policy="propagate"):
-        """Initialize an empty accumulator."""
+        """Initialize an empty accumulator.
+
+        Parameters
+        ----------
+        nan_policy : str, default="propagate"
+            One of "propagate", "omit" or "raise".
+
+        Raises
+        ------
+        TypeError
+            If nan_policy is not a string.
+        ValueError
+            If nan_policy is unsupported.
+
+        Complexity
+        ----------
+        O(1) time and space.
+        """
         self.nan_policy = _validate_nan_policy(nan_policy)
         self.reset()
 
     def reset(self):
-        """Clear accumulated statistics and return self."""
+        """Clear accumulated statistics and return self.
+
+        Sets count=0, mean=NaN and M2=0.
+        Preserves nan_policy and clears propagated NaN state.
+
+        Complexity: O(1) time and space.
+        """
         self.count = 0
         self.mean = np.float64(np.nan)
         self.M2 = np.float64(0.0)
@@ -437,7 +802,42 @@ class StreamingStats:
         return self
 
     def update(self, values):
-        """Merge a 1D numeric batch into the accumulated state."""
+        """Merge a 1D numeric batch into the accumulated state.
+
+        Parameters
+        ----------
+        values : array-like, shape (n,)
+            Real numeric batch converted to float64 without modification.
+            Boolean, complex, string, object and infinite input is rejected.
+            Empty batches leave the state unchanged.
+
+        Returns
+        -------
+        StreamingStats
+            This accumulator, allowing chained updates.
+
+        Raises
+        ------
+        TypeError
+            If the input or nan_policy type is unsupported.
+        ValueError
+            If the batch is not 1D, nan_policy is invalid, infinity is
+            present, NaN violates the "raise" policy, or finite-data
+            calculations exceed supported float64 limits.
+
+        Notes
+        -----
+        Validation and finite-data calculations complete before state
+        is committed. Failed updates preserve the previous state.
+
+        A propagated NaN remains active until reset, even if nan_policy
+        is subsequently changed.
+
+        For a batch of B elements:
+        Time complexity: O(B).
+        Temporary space complexity: O(B).
+        Persistent accumulator space: O(1).
+        """
         array, _, policy, nan_mask = _prepare_reduction(values, None, self.nan_policy)
 
         if array.ndim != 1:
@@ -502,7 +902,31 @@ class StreamingStats:
         return self
 
     def variance(self, ddof=0):
-        """Return accumulated variance as a numpy.float64 scalar."""
+        """Return accumulated variance as a numpy.float64 scalar.
+
+        Parameters
+        ----------
+        ddof : int, default=0
+            Non-negative integer; boolean values are rejected.
+            The denominator is count - ddof.
+
+        Returns
+        -------
+        numpy.float64
+            M2 / (count - ddof).
+            Return NaN if count <= ddof or NaN has propagated.
+
+        Raises
+        ------
+        TypeError
+            If ddof is not an integer or is boolean.
+        ValueError
+            If ddof is negative.
+
+        Complexity
+        ----------
+        O(1) time and space.
+        """
         ddof = _validate_integer(ddof, name="ddof", minimum=0)
 
         if self._poisoned or self.count <= ddof:
@@ -511,5 +935,28 @@ class StreamingStats:
         return np.float64(self.M2 / (self.count - ddof))
 
     def std(self, ddof=0):
-        """Return accumulated standard deviation as a numpy.float64."""
+        """Return accumulated standard deviation as a numpy.float64.
+
+        Parameters
+        ----------
+        ddof : int, default=0
+            Non-negative integer; boolean values are rejected.
+
+        Returns
+        -------
+        numpy.float64
+            Square root of accumulated variance.
+            Return NaN if count <= ddof or NaN has propagated.
+
+        Raises
+        ------
+        TypeError
+            If ddof is not an integer or is boolean.
+        ValueError
+            If ddof is negative.
+
+        Complexity
+        ----------
+        O(1) time and space.
+        """
         return np.float64(np.sqrt(self.variance(ddof=ddof)))

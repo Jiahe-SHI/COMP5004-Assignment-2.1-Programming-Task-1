@@ -115,7 +115,58 @@ def _rows(path, delimiter, skip_header, usecols, missing, fill_value,
 def iter_csv_chunks(path, chunk_size=1024, delimiter=',', dtype=float,
                     skip_header=0, usecols=None, missing='fill', fill_value=None,
                     missing_values=('', 'NA', 'NaN', 'nan')):
-    """Yield independent 2D arrays from an unquoted UTF-8 delimited file."""
+    """Yield independent 2D arrays from an unquoted UTF-8 delimited file.
+    
+        Parameters
+        ----------
+        path : str or os.PathLike
+            File to read. File-like objects are outside this baseline.
+        chunk_size : positive int
+            Usable rows per chunk; the last chunk may be smaller. Booleans rejected.
+        delimiter : str
+            One character (default comma); tab is supported.
+        dtype : NumPy dtype specification
+            Signed/unsigned integer, float, Unicode or UTF-8 byte string. Unsized
+            strings infer width per chunk; concatenate preserves all their values.
+        skip_header : non-negative int
+            Number of physical initial lines to skip.
+        usecols : sequence of unique non-negative ints or None
+            Select columns in this order; None selects all columns.
+        missing : {'fill', 'skip'}
+            Replace missing selected cells or discard their entire row.
+        fill_value : scalar or None
+            Default: NaN for float, empty string for strings. Integer missing
+            cells require an explicit representable integer. Used only when needed.
+        missing_values : collection of str
+            Exact tokens checked after stripping surrounding whitespace.
+    
+        Yields
+        ------
+        numpy.ndarray
+            Shape (usable_rows, selected_columns), including single-row/column cases.
+    
+        Raises
+        ------
+        TypeError
+            Unsupported parameter types or dtype.
+        ValueError
+            Invalid options, quotes, inconsistent widths, conversion loss, or no
+            usable data. Nonintegral/out-of-range integers and string truncation
+            are rejected. Blank lines are ignored; comments have no special meaning.
+        FileNotFoundError
+            Input path does not exist.
+    
+        Notes
+        -----
+        Validation occurs on iteration. Later errors may follow earlier yields.
+        No embedded newlines or double-quoted fields are supported. Float NaN/inf
+        values follow NumPy conversion semantics. Close a partially consumed
+        generator to release its file promptly.
+        Time O(B + N*C) for B input characters and N*C selected cells (bounded
+        token lengths); additional space O(K*C*L + W), independent of total rows,
+        for K=chunk_size, maximum token length L and maximum physical line size W.
+        Integer conversion checks exact decimal values before casting.
+        """
     chunk_size = _validate_integer(chunk_size, name='chunk_size', minimum=1)
     dtype, skip_header, usecols, missing_values = _options(
         delimiter, dtype, skip_header, usecols, missing, missing_values)
@@ -142,7 +193,22 @@ def iter_csv_chunks(path, chunk_size=1024, delimiter=',', dtype=float,
 def load_csv(path, delimiter=',', dtype=float, skip_header=0, usecols=None,
              missing='fill', fill_value=None,
              missing_values=('', 'NA', 'NaN', 'nan')):
-    """Read a complete unquoted UTF-8 CSV into a homogeneous 2D ndarray."""
+    """Read a complete unquoted UTF-8 CSV into a homogeneous 2D ndarray.
+    
+        Parameters and errors match iter_csv_chunks, except chunk_size is absent.
+        path is str/PathLike; delimiter is one character; dtype is real numeric or
+        string; skip_header is a non-negative physical-line count; usecols is None
+        or unique non-negative indices. missing is 'fill' or 'skip'; fill_value is
+        a scalar or None; missing_values is a collection of stripped-field tokens.
+        Returns shape (N, C), never a squeezed vector. Empty, header-only and
+        entirely skipped input raise ValueError. Bad types raise TypeError; missing
+        paths raise FileNotFoundError; invalid data/options raise ValueError.
+        Integer loss and string truncation are rejected. See iter_csv_chunks for
+        detailed dtype, missing-value, quote and whitespace rules.
+        Time O(B + N*C) at bounded token lengths; additional space O(N*C*L + W),
+        including the full output and concatenation, where B is input characters,
+        L maximum token length and W maximum physical line size.
+        """
     return np.concatenate(list(iter_csv_chunks(
         path, delimiter=delimiter, dtype=dtype, skip_header=skip_header,
         usecols=usecols, missing=missing, fill_value=fill_value,
