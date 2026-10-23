@@ -1,0 +1,192 @@
+{
+    "run_id": "run_20261023T190442_095557Z",
+    "started_at_utc": "2026-10-23T19:04:42.095593+00:00",
+    "environment": {
+        "python": "3.13.13",
+        "numpy": "2.4.6",
+        "os": "Windows-11-10.0.26200-SP0",
+        "cpu": "Intel64 Family 6 Model 189 Stepping 1, GenuineIntel"
+    },
+    "git": {
+        "commit": "2ea2845b3add04a19da0753b63cdde373371b830",
+        "dirty": false,
+        "status": "",
+        "error": null
+    },
+    "config": {
+        "sizes": [
+            1000,
+            10000,
+            100000
+        ],
+        "seed": 42,
+        "warmup": 3,
+        "repeats": 10,
+        "calls_per_sample": 1,
+        "dtype": "float64",
+        "feature_count": 10,
+        "constant_column": 0,
+        "constant_value": 7.0,
+        "topk_fixed": 10,
+        "topk_fraction": "n // 10",
+        "distribution": "standard normal",
+        "rng": "numpy.random.default_rng, reset for each size",
+        "generation_order": [
+            "values",
+            "features",
+            "y_true",
+            "y_pred"
+        ],
+        "rtol": 1e-10,
+        "atol": 1e-12,
+        "topk_comparison": "exact values and indices"
+    },
+    "timing": {
+        "clock": "time.perf_counter",
+        "included": "function validation, copying and allocation",
+        "excluded": "input generation, correctness checks and file I/O",
+        "standardization": "new scaler, fit and transform",
+        "order": "baseline warmup and samples, then candidate"
+    },
+    "cases": [
+        {
+            "case_id": "mean_1000",
+            "shape": [
+                1000
+            ],
+            "dtype": "float64",
+            "k": null,
+            "comparison": "loop_vs_vectorized"
+        },
+        {
+            "case_id": "standardization_1000",
+            "shape": [
+                1000,
+                10
+            ],
+            "dtype": "float64",
+            "k": null,
+            "comparison": "loop_vs_vectorized"
+        },
+        {
+            "case_id": "mse_1000",
+            "shape": [
+                1000
+            ],
+            "dtype": "float64",
+            "k": null,
+            "comparison": "loop_vs_vectorized"
+        },
+        {
+            "case_id": "topk_fixed_1000",
+            "shape": [
+                1000
+            ],
+            "dtype": "float64",
+            "k": 10,
+            "comparison": "full_sort_vs_argpartition"
+        },
+        {
+            "case_id": "topk_fraction_1000",
+            "shape": [
+                1000
+            ],
+            "dtype": "float64",
+            "k": 100,
+            "comparison": "full_sort_vs_argpartition"
+        },
+        {
+            "case_id": "mean_10000",
+            "shape": [
+                10000
+            ],
+            "dtype": "float64",
+            "k": null,
+            "comparison": "loop_vs_vectorized"
+        },
+        {
+            "case_id": "standardization_10000",
+            "shape": [
+                10000,
+                10
+            ],
+            "dtype": "float64",
+            "k": null,
+            "comparison": "loop_vs_vectorized"
+        },
+        {
+            "case_id": "mse_10000",
+            "shape": [
+                10000
+            ],
+            "dtype": "float64",
+            "k": null,
+            "comparison": "loop_vs_vectorized"
+        },
+        {
+            "case_id": "topk_fixed_10000",
+            "shape": [
+                10000
+            ],
+            "dtype": "float64",
+            "k": 10,
+            "comparison": "full_sort_vs_argpartition"
+        },
+        {
+            "case_id": "topk_fraction_10000",
+            "shape": [
+                10000
+            ],
+            "dtype": "float64",
+            "k": 1000,
+            "comparison": "full_sort_vs_argpartition"
+        },
+        {
+            "case_id": "mean_100000",
+            "shape": [
+                100000
+            ],
+            "dtype": "float64",
+            "k": null,
+            "comparison": "loop_vs_vectorized"
+        },
+        {
+            "case_id": "standardization_100000",
+            "shape": [
+                100000,
+                10
+            ],
+            "dtype": "float64",
+            "k": null,
+            "comparison": "loop_vs_vectorized"
+        },
+        {
+            "case_id": "mse_100000",
+            "shape": [
+                100000
+            ],
+            "dtype": "float64",
+            "k": null,
+            "comparison": "loop_vs_vectorized"
+        },
+        {
+            "case_id": "topk_fixed_100000",
+            "shape": [
+                100000
+            ],
+            "dtype": "float64",
+            "k": 10,
+            "comparison": "full_sort_vs_argpartition"
+        },
+        {
+            "case_id": "topk_fraction_100000",
+            "shape": [
+                100000
+            ],
+            "dtype": "float64",
+            "k": 10000,
+            "comparison": "full_sort_vs_argpartition"
+        }
+    ],
+    "measurements_finished_at_utc": "2026-10-23T19:04:46.945295+00:00"
+}
