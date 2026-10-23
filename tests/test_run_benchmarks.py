@@ -3,6 +3,7 @@ from unittest.mock import Mock, patch
 from benchmark.run_benchmarks import (
     check_equivalent, run_case, prepare_inputs, run_experiments,
     save_raw_timings, save_summary, git_info, save_environment,
+    build_run_info, main,
 )
 import numpy as np
 import csv
@@ -424,6 +425,143 @@ class TestSaveEnvironment(unittest.TestCase):
                 save_environment({"seconds": float("nan")}, path)
 
             self.assertFalse(path.exists())
+
+class TestBuildRunInfo(unittest.TestCase):
+    def test_record_content(self):
+        git = {
+            "commit": "abc123",
+            "dirty": False,
+            "status": "",
+            "error": None,
+        }
+
+        # Supply a fixed Git result for this test.
+        with patch(
+            "benchmark.run_benchmarks.git_info",
+            return_value=git,
+        ):
+            info = build_run_info(
+                "test_run", [20, 100],
+                seed=7, warmup=0, repeats=2,
+            )
+
+        self.assertEqual(info["run_id"], "test_run")
+        self.assertEqual(info["git"], git)
+        self.assertIn("python", info["environment"])
+        self.assertIn("numpy", info["environment"])
+
+        config = info["config"]
+        self.assertEqual(config["sizes"], [20, 100])
+        self.assertEqual(config["seed"], 7)
+        self.assertEqual(config["warmup"], 0)
+        self.assertEqual(config["repeats"], 2)
+        self.assertEqual(config["dtype"], "float64")
+
+        self.assertTrue(
+            info["started_at_utc"].endswith("+00:00")
+        )
+
+        # The complete record must support JSON conversion.
+        content = json.dumps(info, allow_nan=False)
+        loaded = json.loads(content)
+        self.assertEqual(loaded, info)
+
+    def test_invalid_types(self):
+        with self.assertRaises(TypeError):
+            build_run_info(123, [20])
+
+        with self.assertRaises(TypeError):
+            build_run_info("test_run", 20)
+
+        with self.assertRaises(TypeError):
+            build_run_info("test_run", [20], warmup=True)
+
+    def test_invalid_values(self):
+        with self.assertRaises(ValueError):
+            build_run_info("   ", [20])
+
+        with self.assertRaises(ValueError):
+            build_run_info("test_run", [])
+
+        with self.assertRaises(ValueError):
+            build_run_info("test_run", [9])
+
+        with self.assertRaises(ValueError):
+            build_run_info("test_run", [20], seed=-1)
+
+        with self.assertRaises(ValueError):
+            build_run_info("test_run", [20], repeats=0)
+
+class TestMain(unittest.TestCase):
+    def test_small_run(self):
+        with tempfile.TemporaryDirectory() as folder:
+            output_dir = Path(folder) / "results"
+
+            run_dir = main(
+                sizes=[20, 30],
+                seed=7,
+                warmup=0,
+                repeats=1,
+                output_dir=output_dir,
+            )
+
+            self.assertEqual(run_dir.parent, output_dir)
+
+            with (run_dir / "environment.json").open(
+                encoding="utf-8"
+            ) as stream:
+                info = json.load(stream)
+
+            with (run_dir / "summary.csv").open(
+                encoding="utf-8", newline=""
+            ) as stream:
+                summary_rows = list(csv.reader(stream))
+
+            with (run_dir / "raw_timings.csv").open(
+                encoding="utf-8", newline=""
+            ) as stream:
+                raw_rows = list(csv.reader(stream))
+
+            self.assertEqual(info["run_id"], run_dir.name)
+            self.assertEqual(info["config"]["sizes"], [20, 30])
+            self.assertEqual(info["config"]["seed"], 7)
+            self.assertEqual(info["config"]["warmup"], 0)
+            self.assertEqual(info["config"]["repeats"], 1)
+
+            # Two sizes produce ten cases.
+            self.assertEqual(len(info["cases"]), 10)
+            self.assertEqual(len(summary_rows), 11)
+            self.assertEqual(len(raw_rows), 21)
+
+            self.assertEqual(summary_rows[1][1], "mean_20")
+            self.assertEqual(
+                summary_rows[-1][1], "topk_fraction_30"
+            )
+
+            # Both CSV files must belong to the same run.
+            for row in summary_rows[1:]:
+                self.assertEqual(row[0], info["run_id"])
+
+            for row in raw_rows[1:]:
+                self.assertEqual(row[0], info["run_id"])
+
+    def test_failure_stops_saving(self):
+        with tempfile.TemporaryDirectory() as folder:
+            output_dir = Path(folder) / "results"
+
+            with patch(
+                "benchmark.run_benchmarks.run_experiments",
+                side_effect=AssertionError("Results differ"),
+            ):
+                with self.assertRaises(AssertionError):
+                    main(
+                        sizes=[20],
+                        warmup=0,
+                        repeats=1,
+                        output_dir=output_dir,
+                    )
+
+            self.assertFalse(output_dir.exists())
 
 if __name__ == "__main__":
     unittest.main()

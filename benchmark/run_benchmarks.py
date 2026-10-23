@@ -3,7 +3,7 @@ import csv
 from pathlib import Path
 import numpy as np
 from numpy.testing import assert_allclose, assert_array_equal
-from numcompute.benchmarking import benchmark
+from numcompute.benchmarking import benchmark, environment_info
 from numcompute.utils import _validate_integer
 from benchmark.baselines import (
     loop_mean, loop_standardize, loop_mse, full_sort_topk,
@@ -14,6 +14,7 @@ from numcompute.metrics import mse
 from numcompute.sort_search import topk
 import subprocess
 import json
+from datetime import datetime, timezone
 
 def check_equivalent(expected, actual, *, exact=False):
     """Check output structure, shapes and numerical agreement.
@@ -509,3 +510,180 @@ def save_environment(info, path):
         stream.write(content)
 
     return json_path
+
+def build_run_info(run_id, sizes, seed=42, warmup=3, repeats=10):
+    """Collect settings and environment before running experiments.
+
+    Parameters:
+        run_id (str): Non-empty experiment identifier.
+        sizes (list or tuple): Non-empty collection of sample counts.
+            Each count must be at least 10.
+        seed (int): Non-negative random seed, default 42.
+        warmup (int): Non-negative warmup count, default 3.
+        repeats (int): Positive measured call count, default 10.
+            Boolean values are rejected for integer parameters.
+
+    Returns:
+        dict: Run identifier, UTC start time, environment, Git status,
+            input settings and timing rules. Settings describe inputs
+            of shape (n,) or (n, 10); no input arrays are stored.
+
+    Raises:
+        TypeError: A parameter has an unsupported type.
+        ValueError: An identifier or size collection is empty,
+            or an integer is outside its allowed range.
+        Platform query errors propagate. Git errors are recorded.
+
+    Complexity:
+        Local validation takes O(M) time for M input sizes.
+        Git and platform query time depends on the repository and OS.
+        Additional Python space O(M + S), where S is Git output length.
+    """
+    if not isinstance(run_id, str):
+        raise TypeError("run_id must be a string.")
+
+    if not run_id.strip():
+        raise ValueError("run_id must not be empty.")
+
+    if not isinstance(sizes, (list, tuple)):
+        raise TypeError("sizes must be a list or tuple.")
+
+    if not sizes:
+        raise ValueError("sizes must not be empty.")
+
+    checked_sizes = []
+    for n in sizes:
+        n = _validate_integer(n, name="n", minimum=10)
+        checked_sizes.append(n)
+
+    seed = _validate_integer(seed, name="seed", minimum=0)
+    warmup = _validate_integer(warmup, name="warmup", minimum=0)
+    repeats = _validate_integer(repeats, name="repeats", minimum=1)
+
+    # Record the code state before creating result files.
+    info = {
+        "run_id": run_id,
+        "started_at_utc": datetime.now(timezone.utc).isoformat(),
+        "environment": environment_info(),
+        "git": git_info(),
+    }
+
+    info["config"] = {
+        "sizes": checked_sizes,
+        "seed": seed,
+        "warmup": warmup,
+        "repeats": repeats,
+        "calls_per_sample": 1,
+        "dtype": "float64",
+        "feature_count": 10,
+        "constant_column": 0,
+        "constant_value": 7.0,
+        "topk_fixed": 10,
+        "topk_fraction": "n // 10",
+        "distribution": "standard normal",
+        "rng": "numpy.random.default_rng, reset for each size",
+        "generation_order": ["values", "features", "y_true", "y_pred"],
+        "rtol": 1e-10,
+        "atol": 1e-12,
+        "topk_comparison": "exact values and indices",
+    }
+
+    info["timing"] = {
+        "clock": "time.perf_counter",
+        "included": "function validation, copying and allocation",
+        "excluded": "input generation, correctness checks and file I/O",
+        "standardization": "new scaler, fit and transform",
+        "order": "baseline warmup and samples, then candidate",
+    }
+
+    return info
+
+def main(sizes=(1000, 10000, 100000), seed=42,
+         warmup=3, repeats=10, output_dir=None):
+    """Run experiments and save their results and metadata.
+
+    Parameters:
+        sizes (list or tuple): Sample counts, each at least 10.
+            Defaults to (1000, 10000, 100000).
+        seed (int): Non-negative random seed, default 42.
+        warmup (int): Non-negative warmup count, default 3.
+        repeats (int): Positive sample count, default 10.
+            Boolean values are rejected for integer parameters.
+        output_dir (str, Path or None): Parent output directory.
+            None selects benchmark/results beside this script.
+
+    Returns:
+        Path: New run directory containing raw_timings.csv,
+            summary.csv and environment.json.
+            Inputs have shape (n,) or (n, 10).
+            Each size produces five cases.
+
+    Raises:
+        TypeError: A parameter has an unsupported type.
+        ValueError: Settings are empty or outside allowed ranges.
+        AssertionError: Compared implementations disagree.
+        FileExistsError: The generated run directory already exists.
+        OSError: An output directory or file cannot be written.
+        Other computation and serialization errors propagate.
+
+    Complexity:
+        For M sizes no greater than N, local time is
+        O(M * ((w+r+1) * N log N + r log r)).
+        Additional space O(N + M*r + S), where S is Git output size.
+        The feature count is fixed at 10.
+        Git and platform query costs depend on the repository and OS.
+    """
+    if output_dir is None:
+        output_dir = Path(__file__).resolve().parent / "results"
+    else:
+        output_dir = Path(output_dir)
+
+    # Give each run its own directory.
+    run_id = datetime.now(timezone.utc).strftime(
+        "run_%Y%m%dT%H%M%S_%fZ"
+    )
+
+    info = build_run_info(run_id, sizes, seed, warmup, repeats)
+    config = info["config"]
+    results = []
+
+    for n in config["sizes"]:
+        print("Running n =", n)
+
+        size_results = run_experiments(
+            n=n,
+            seed=config["seed"],
+            warmup=config["warmup"],
+            repeats=config["repeats"],
+        )
+        results.extend(size_results)
+
+    # Record the actual cases alongside the shared settings.
+    info["cases"] = []
+    for result in results:
+        info["cases"].append({
+            "case_id": result["case_id"],
+            "shape": result["shape"],
+            "dtype": result["dtype"],
+            "k": result["k"],
+            "comparison": result["comparison"],
+        })
+
+    info["measurements_finished_at_utc"] = (
+        datetime.now(timezone.utc).isoformat()
+    )
+
+    # Save files only after all cases have passed.
+    run_dir = output_dir / run_id
+    run_dir.mkdir(parents=True, exist_ok=False)
+
+    save_raw_timings(results, run_dir / "raw_timings.csv", run_id)
+    save_summary(results, run_dir / "summary.csv", run_id)
+    save_environment(info, run_dir / "environment.json")
+
+    print("Results saved to:", run_dir)
+    return run_dir
+
+
+if __name__ == "__main__":
+    main()
