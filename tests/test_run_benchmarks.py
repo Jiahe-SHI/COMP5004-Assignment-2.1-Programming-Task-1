@@ -2,12 +2,13 @@ import unittest
 from unittest.mock import Mock, patch
 from benchmark.run_benchmarks import (
     check_equivalent, run_case, prepare_inputs, run_experiments,
-    save_raw_timings, save_summary, git_info,
+    save_raw_timings, save_summary, git_info, save_environment,
 )
 import numpy as np
 import csv
 import tempfile
 from pathlib import Path
+import json
 
 class TestCheckEquivalent(unittest.TestCase):
     def test_close_results(self):
@@ -370,6 +371,59 @@ class TestGitInfo(unittest.TestCase):
         self.assertIsNone(info["dirty"])
         self.assertEqual(info["status"], "unknown")
         self.assertIn("Git unavailable", info["error"])
+
+class TestSaveEnvironment(unittest.TestCase):
+    def test_json_content(self):
+        info = {
+            "run_id": "test_run",
+            "seed": 42,
+            "shape": [20, 10],
+            "environment": {"cpu": "unknown"},
+            "git": {"commit": "abc123", "dirty": False},
+            "note": "测试记录",
+        }
+
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "results" / "environment.json"
+            saved_path = save_environment(info, path)
+
+            self.assertEqual(saved_path, path)
+
+            # Read the file back and compare its contents.
+            with path.open(encoding="utf-8") as stream:
+                loaded = json.load(stream)
+
+            self.assertEqual(loaded, info)
+
+    def test_existing_file_unchanged(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "environment.json"
+            save_environment({"seed": 42}, path)
+            original = path.read_text(encoding="utf-8")
+
+            with self.assertRaises(FileExistsError):
+                save_environment({"seed": 99}, path)
+
+            self.assertEqual(
+                path.read_text(encoding="utf-8"), original
+            )
+
+    def test_invalid_info(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "environment.json"
+
+            # The input must be a dictionary.
+            with self.assertRaises(TypeError):
+                save_environment([1, 2], path)
+
+            # NumPy arrays cannot be saved directly as JSON.
+            with self.assertRaises(TypeError):
+                save_environment({"values": np.array([1, 2])}, path)
+
+            with self.assertRaises(ValueError):
+                save_environment({"seconds": float("nan")}, path)
+
+            self.assertFalse(path.exists())
 
 if __name__ == "__main__":
     unittest.main()

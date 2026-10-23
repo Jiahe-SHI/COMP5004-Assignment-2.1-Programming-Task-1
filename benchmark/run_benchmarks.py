@@ -13,6 +13,7 @@ from numcompute.preprocessing import StandardScaler
 from numcompute.metrics import mse
 from numcompute.sort_search import topk
 import subprocess
+import json
 
 def check_equivalent(expected, actual, *, exact=False):
     """Check output structure, shapes and numerical agreement.
@@ -463,3 +464,48 @@ def git_info():
         "status": status.stdout,
         "error": None,
     }
+
+def save_environment(info, path):
+    """Save experiment metadata to a new JSON file.
+
+    Parameters:
+        info (dict): Metadata containing JSON-compatible values,
+            such as strings, numbers, lists and dictionaries.
+            Record array shapes as lists, for example [1000, 10].
+            NumPy arrays must not be supplied directly.
+        path (str or Path): Destination JSON file.
+
+    Returns:
+        Path: Saved JSON location. The file contains one JSON
+            object describing the experiment, not input arrays.
+
+    Raises:
+        TypeError: info is not a dictionary, a value cannot be
+            serialized, or path has an unsupported type.
+        ValueError: Data contains NaN, infinity or circular references.
+        FileExistsError: The destination file already exists.
+        OSError: The directory or file cannot be created or written.
+
+    Complexity:
+        Time O(L) and additional space O(L), where L is the
+        serialized text length, assuming ordinary JSON-compatible
+        data. File I/O buffers are excluded.
+    """
+    if not isinstance(info, dict):
+        raise TypeError("info must be a dictionary.")
+
+    # Convert the dictionary before creating the output file.
+    content = json.dumps(
+        info,
+        indent=4,
+        ensure_ascii=False,
+        allow_nan=False,
+    )
+
+    json_path = Path(path)
+    json_path.parent.mkdir(parents=True, exist_ok=True)
+
+    with json_path.open("x", encoding="utf-8") as stream:
+        stream.write(content)
+
+    return json_path
