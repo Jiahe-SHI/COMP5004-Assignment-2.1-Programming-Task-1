@@ -2,7 +2,8 @@
 
 import numpy as np
 from numpy.testing import assert_allclose, assert_array_equal
-
+from numcompute.benchmarking import benchmark
+from numcompute.utils import _validate_integer
 
 def check_equivalent(expected, actual, *, exact=False):
     """Check output structure, shapes and numerical agreement.
@@ -49,3 +50,67 @@ def check_equivalent(expected, actual, *, exact=False):
                 received, wanted,
                 rtol=1e-10, atol=1e-12, equal_nan=False,
             )
+
+def run_case(case_id, baseline, candidate, args=(),
+             exact=False, warmup=3, repeats=10):
+    """Check correctness and time two implementations.
+
+    Parameters:
+        case_id (str): Name identifying the experiment.
+        baseline, candidate (callable): Functions being compared.
+        args (tuple): Shared inputs; shapes depend on the functions.
+        exact (bool): Whether outputs must match exactly.
+        warmup (int): Untimed calls per implementation, default 3.
+            Must be non-negative.
+        repeats (int): Measured calls per implementation, default 10.
+            Must be positive. Boolean counts are rejected.
+
+    Returns:
+        dict: Case ID, correctness status, two timing dictionaries
+            and scalar speedup. Each timing dictionary contains
+            repeats samples. Speedup is None for invalid median times.
+
+    Raises:
+        AssertionError: Outputs differ in structure, shape or value.
+        TypeError: Functions, counts or comparison options are invalid.
+        ValueError: Counts are outside their allowed ranges.
+        Errors from either implementation propagate unchanged.
+
+    Complexity:
+        Time O((w+r+1)*(C+1) + N + r log r), where C is the combined
+        call cost and N is the total number of output elements.
+        Additional space O(N+r), excluding function workspace.
+    """
+    warmup = _validate_integer(warmup, name="warmup", minimum=0)
+    repeats = _validate_integer(repeats, name="repeats", minimum=1)
+
+    # Correctness checks happen outside the timed intervals.
+    expected = baseline(*args)
+    actual = candidate(*args)
+    check_equivalent(expected, actual, exact=exact)
+
+    baseline_timing = benchmark(
+        baseline, *args, warmup=warmup, repeats=repeats
+    )
+    candidate_timing = benchmark(
+        candidate, *args, warmup=warmup, repeats=repeats
+    )
+
+    baseline_seconds = baseline_timing["median_seconds"]
+    candidate_seconds = candidate_timing["median_seconds"]
+
+    # Only calculate a ratio from positive, finite times.
+    if (baseline_seconds > 0 and candidate_seconds > 0
+            and np.isfinite(baseline_seconds)
+            and np.isfinite(candidate_seconds)):
+        speedup = baseline_seconds / candidate_seconds
+    else:
+        speedup = None
+
+    return {
+        "case_id": case_id,
+        "equivalent": True,
+        "baseline": baseline_timing,
+        "candidate": candidate_timing,
+        "speedup": speedup,
+    }
