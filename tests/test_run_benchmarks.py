@@ -2,7 +2,7 @@ import unittest
 from unittest.mock import patch
 from benchmark.run_benchmarks import (
     check_equivalent, run_case, prepare_inputs, run_experiments,
-    save_raw_timings,
+    save_raw_timings, save_summary,
 )
 import numpy as np
 import csv
@@ -247,6 +247,81 @@ class TestSaveRawTimings(unittest.TestCase):
 
             with self.assertRaises(ValueError):
                 save_raw_timings([], path, "   ")
+
+            self.assertFalse(path.exists())
+
+class TestSaveSummary(unittest.TestCase):
+    def test_csv_content(self):
+        # Fixed numbers check export contents, not performance.
+        results = [
+            {
+                "case_id": "mean_20",
+                "task": "mean",
+                "shape": [20],
+                "dtype": "float64",
+                "k": None,
+                "comparison": "loop_vs_vectorized",
+                "baseline_name": "loop_mean",
+                "candidate_name": "mean",
+                "baseline": {
+                    "median_seconds": 2.0,
+                    "min_seconds": 1.8,
+                },
+                "candidate": {
+                    "median_seconds": 0.5,
+                    "min_seconds": 0.4,
+                },
+                "speedup": 4.0,
+                "equivalent": True,
+            }
+        ]
+
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "results" / "summary.csv"
+            saved_path = save_summary(results, path, "test_run")
+
+            self.assertEqual(saved_path, path)
+
+            with path.open(encoding="utf-8", newline="") as stream:
+                rows = list(csv.reader(stream))
+
+            self.assertEqual(rows, [
+                [
+                    "run_id", "case_id", "task", "shape", "dtype", "k",
+                    "comparison", "baseline_name", "candidate_name",
+                    "baseline_median_seconds", "candidate_median_seconds",
+                    "baseline_min_seconds", "candidate_min_seconds",
+                    "speedup", "equivalent",
+                ],
+                [
+                    "test_run", "mean_20", "mean", "[20]", "float64", "",
+                    "loop_vs_vectorized", "loop_mean", "mean",
+                    "2.0", "0.5", "1.8", "0.4", "4.0", "True",
+                ],
+            ])
+
+    def test_existing_file_unchanged(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "summary.csv"
+            save_summary([], path, "first_run")
+            original = path.read_text(encoding="utf-8")
+
+            with self.assertRaises(FileExistsError):
+                save_summary([], path, "second_run")
+
+            self.assertEqual(
+                path.read_text(encoding="utf-8"), original
+            )
+
+    def test_invalid_run_id(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "summary.csv"
+
+            with self.assertRaises(TypeError):
+                save_summary([], path, 123)
+
+            with self.assertRaises(ValueError):
+                save_summary([], path, "   ")
 
             self.assertFalse(path.exists())
 

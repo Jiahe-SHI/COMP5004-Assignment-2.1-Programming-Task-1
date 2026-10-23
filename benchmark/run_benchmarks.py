@@ -321,3 +321,76 @@ def save_raw_timings(results, path, run_id):
                     ])
 
     return csv_path
+
+def save_summary(results, path, run_id):
+   
+    """Write one summary row per benchmark case.
+
+    Parameters:
+        results (list): Result dictionaries from run_experiments.
+            Input shapes are (n,) or (n, 10), stored in "shape".
+        path (str or Path): Destination CSV file.
+        run_id (str): Non-empty identifier shared with raw timings.
+
+    Returns:
+        Path: Saved CSV location. Each case produces one row
+            with 15 columns. None values become empty cells.
+
+    Raises:
+        TypeError: run_id is not a string or path is unsupported.
+        ValueError: run_id is empty or contains only whitespace.
+        FileExistsError: The destination file already exists.
+        KeyError: A required result field is missing.
+        OSError: The directory or file cannot be created or written.
+
+    Complexity:
+        Time O(C), where C is the number of cases and input
+        rank is at most two. Additional space O(1), excluding
+        supplied results and file I/O buffers.
+    """
+    # check run id, preserve the content
+    # create CSV
+    # Iterate through the experimental results, writing one line for each experiment.
+    if not isinstance(run_id, str):
+        raise TypeError("run_id must be a string.")
+
+    if not run_id.strip():
+        raise ValueError("run_id must not be empty.")
+
+    csv_path = Path(path)
+    csv_path.parent.mkdir(parents=True, exist_ok=True)
+
+    with csv_path.open("x", encoding="utf-8", newline="") as stream:
+        writer = csv.writer(stream)
+        writer.writerow([
+            "run_id", "case_id", "task", "shape", "dtype", "k",
+            "comparison", "baseline_name", "candidate_name",
+            "baseline_median_seconds", "candidate_median_seconds",
+            "baseline_min_seconds", "candidate_min_seconds",
+            "speedup", "equivalent",
+        ])
+
+        # Each experiment contributes one summary row.
+        for result in results:
+            baseline = result["baseline"]
+            candidate = result["candidate"]
+
+            writer.writerow([
+                run_id,
+                result["case_id"],
+                result["task"],
+                result["shape"],
+                result["dtype"],
+                result["k"],
+                result["comparison"],
+                result["baseline_name"],
+                result["candidate_name"],
+                baseline["median_seconds"],
+                candidate["median_seconds"],
+                baseline["min_seconds"],
+                candidate["min_seconds"],
+                result["speedup"],
+                result["equivalent"],
+            ])
+
+    return csv_path
