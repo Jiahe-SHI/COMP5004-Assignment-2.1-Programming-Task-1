@@ -4,6 +4,13 @@ import numpy as np
 from numpy.testing import assert_allclose, assert_array_equal
 from numcompute.benchmarking import benchmark
 from numcompute.utils import _validate_integer
+from benchmark.baselines import (
+    loop_mean, loop_standardize, loop_mse, full_sort_topk,
+)
+from numcompute.stats import mean
+from numcompute.preprocessing import StandardScaler
+from numcompute.metrics import mse
+from numcompute.sort_search import topk
 
 def check_equivalent(expected, actual, *, exact=False):
     """Check output structure, shapes and numerical agreement.
@@ -157,3 +164,104 @@ def prepare_inputs(n=1000, seed=42):
         "y_true": y_true,
         "y_pred": y_pred,
     }
+
+def project_standardize(X):
+    """Fit and transform data with a newly created StandardScaler.
+
+    Parameters:
+        X (array-like, shape (n, p)): Non-empty numeric table.
+            NaN is allowed, but each column needs a valid training value.
+
+    Returns:
+        numpy.ndarray: Independent float64 output of shape (n, p).
+            Input NaN positions are preserved.
+
+    Raises:
+        TypeError: Input contains unsupported numeric types.
+        ValueError: Shape, feature values or numeric range are invalid.
+
+    Complexity:
+        Time O(n * p). Additional space O(n * p).
+    """
+    scaler = StandardScaler()
+    return scaler.fit_transform(X)
+
+def run_experiments(n=1000, seed=42, warmup=3, repeats=10):
+    """Run the four benchmark tasks at one input size.
+
+    Parameters:
+        n (int): Sample count, at least 10; default 1000.
+        seed (int): Non-negative random seed; default 42.
+        warmup (int): Non-negative untimed calls; default 3.
+        repeats (int): Positive measured calls; default 10.
+            Boolean values are rejected for integer parameters.
+
+    Returns:
+        list: Five result dictionaries containing correctness status,
+            raw timings, speedup and case metadata.
+            Numeric inputs have shape (n,), except features (n, 10).
+
+    Raises:
+        TypeError: Integer parameters have unsupported types.
+        ValueError: Parameters are outside their allowed ranges.
+        AssertionError: Implementations produce different results.
+        Underlying computation errors propagate unchanged.
+
+    Complexity:
+        Time O((w+r+1) * n log n + r log r), where w is warmup
+        and r is repeats. Additional space O(n+r), for five cases
+        and a fixed feature count of 10.
+    """
+    warmup = _validate_integer(warmup, name="warmup", minimum=0)
+    repeats = _validate_integer(repeats, name="repeats", minimum=1)
+
+    # Generate all inputs before starting the timed calls.
+    data = prepare_inputs(n, seed)
+    values = data["values"]
+    features = data["features"]
+    y_true = data["y_true"]
+    y_pred = data["y_pred"]
+    n = values.size
+
+    # Each case contains its name, functions, inputs and comparison mode.
+    cases = [
+        ("mean", loop_mean, mean, (values,), False),
+        ("standardization", loop_standardize, project_standardize,
+         (features,), False),
+        ("mse", loop_mse, mse, (y_true, y_pred), False),
+        ("topk_fixed", full_sort_topk, topk, (values, 10), True),
+        ("topk_fraction", full_sort_topk, topk,
+         (values, n // 10), True),
+    ]
+
+    results = []
+
+    for case in cases:
+        name, baseline, candidate, args, exact = case
+
+        result = run_case(
+            name + "_" + str(n),
+            baseline, candidate,
+            args=args, exact=exact,
+            warmup=warmup, repeats=repeats,
+        )
+
+        # Keep the settings needed to interpret and export results.
+        result["task"] = name
+        result["shape"] = list(args[0].shape)
+        result["dtype"] = str(args[0].dtype)
+        result["baseline_name"] = baseline.__name__
+        result["candidate_name"] = candidate.__name__
+
+        if exact:
+            result["task"] = "topk"
+            result["k"] = args[1]
+            result["comparison"] = "full_sort_vs_argpartition"
+        else:
+            result["k"] = None
+            result["comparison"] = "loop_vs_vectorized"
+
+        results.append(result)
+
+    return results
+

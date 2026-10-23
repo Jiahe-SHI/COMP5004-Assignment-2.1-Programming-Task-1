@@ -1,7 +1,7 @@
 import unittest
 from unittest.mock import patch
 from benchmark.run_benchmarks import (
-    check_equivalent, run_case, prepare_inputs,
+    check_equivalent, run_case, prepare_inputs, run_experiments,
 )
 import numpy as np
 
@@ -131,6 +131,64 @@ class TestPrepareInputs(unittest.TestCase):
 
         with self.assertRaises(TypeError):
             prepare_inputs(seed=1.5)
+
+class TestRunExperiments(unittest.TestCase):
+    def test_all_cases_run(self):
+        results = run_experiments(
+            n=20, seed=42, warmup=0, repeats=1
+        )
+
+        names = []
+        for result in results:
+            names.append(result["case_id"])
+            self.assertTrue(result["equivalent"])
+            self.assertEqual(result["dtype"], "float64")
+            self.assertEqual(
+                len(result["baseline"]["times_seconds"]), 1
+            )
+            self.assertEqual(
+                len(result["candidate"]["times_seconds"]), 1
+            )
+
+        self.assertEqual(names, [
+            "mean_20",
+            "standardization_20",
+            "mse_20",
+            "topk_fixed_20",
+            "topk_fraction_20",
+        ])
+
+    def test_case_settings(self):
+        results = run_experiments(
+            n=20, seed=42, warmup=0, repeats=1
+        )
+
+        self.assertEqual(results[0]["shape"], [20])
+        self.assertEqual(results[1]["shape"], [20, 10])
+        self.assertIsNone(results[2]["k"])
+
+        # Top-k uses both fixed and proportional selections.
+        self.assertEqual(results[3]["k"], 10)
+        self.assertEqual(results[4]["k"], 2)
+        self.assertEqual(
+            results[3]["comparison"], "full_sort_vs_argpartition"
+        )
+        self.assertEqual(
+            results[0]["comparison"], "loop_vs_vectorized"
+        )
+
+    def test_invalid_parameters(self):
+        with self.assertRaises(ValueError):
+            run_experiments(n=9)
+
+        with self.assertRaises(ValueError):
+            run_experiments(seed=-1)
+
+        with self.assertRaises(TypeError):
+            run_experiments(warmup=True)
+
+        with self.assertRaises(ValueError):
+            run_experiments(repeats=0)
 
 if __name__ == "__main__":
     unittest.main()
