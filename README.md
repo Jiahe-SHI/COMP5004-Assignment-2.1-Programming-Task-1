@@ -2,5 +2,5 @@
 ## Jiahe: preprocessing and stats
 ## Crisanto: sort/search and rank
 ## Shubh: optim and pipeline
-## Lingqi: I/O and metrics
+## Lingqi: I/O and metrics benchmark
 ## due 1.Oct(best before 28.Sep)
