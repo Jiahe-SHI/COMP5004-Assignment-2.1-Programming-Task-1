@@ -176,7 +176,7 @@ Run the complete suite from the repository root:
 python -m unittest discover -s tests -v
 ```
 
-The integrated suite contains **497 tests**, exceeding the assignment's minimum of 20. Tests use standard-library `unittest` and `numpy.testing`, with coverage for empty inputs, equal values, duplicates and ties, extreme `k`, NaNs, non-contiguous arrays, invalid types and shapes, fitted-state behavior, numerical derivatives, and benchmark result handling.
+The original Assignment 2.1 suite contains **497 tests**, exceeding the assignment's minimum of 20. Tests use standard-library `unittest` and `numpy.testing`, with coverage for empty inputs, equal values, duplicates and ties, extreme `k`, NaNs, non-contiguous arrays, invalid types and shapes, fitted-state behavior, numerical derivatives, and benchmark result handling.
 
 For a focused module check:
 
@@ -263,7 +263,7 @@ The `benchmark/` runner and `demo/` are repository resources; the installed dist
 | Lingqi | Shared I/O work, evaluation metrics and benchmarks |
 
 
-## Assignment 2.2: batch decision tree
+## Assignment 2.2: batch and buffered decision tree
 
 This personal extension builds on the original NumCompute toolkit.
 The original `numcompute` package is retained; new functionality is
@@ -274,12 +274,16 @@ Currently implemented:
 - Shared feature, label and parameter validation.
 - Numeric decision tree classification with Gini or entropy.
 - Vectorised split evaluation and batch prediction.
-- `fit`, `predict` and `predict_proba`.
-- Deterministic tie handling and seeded feature subsampling.
+- `fit`, `partial_fit`, `retry_pending_fit`, `predict` and `predict_proba`.
+- Whole-buffer retraining, failure recovery and observable training state.
 
-Buffered `partial_fit` and the remaining streaming components are not
-implemented yet. `buffer_size` is validated configuration; batch `fit`
-trains immediately on all supplied rows.
+Buffered training is implemented for the standalone decision tree.
+Batch `fit` trains immediately on all supplied rows. `partial_fit` copies
+incoming chunks and trains once on the entire pending buffer when its
+sample count reaches or exceeds `buffer_size`.
+
+Incremental preprocessing, statistics, metrics, Pipeline, StreamTrainer,
+streaming CSV integration and visualisation remain pending.
 
 ### Minimal example
 
@@ -313,6 +317,66 @@ frequencies in each reached leaf.
 - Successful fit replaces the learned model; failed fit preserves it.
 - Prediction does not update training state.
 
+### Buffered training example
+
+```python
+import numpy as np
+from numcompute_stream import DecisionTreeClassifier
+
+model = DecisionTreeClassifier(buffer_size=500, random_state=42)
+
+for chunk_index in range(3):
+    X = np.arange(200).reshape(-1, 1)
+    y = (X[:, 0] >= 100).astype(int)
+    model.partial_fit(X, y)
+    print(model.n_samples_buffered_, model.n_retrains_)
+
+# 200 0
+# 400 0
+# 0 1
+
+print(model.n_samples_fit_)   # 600
+print(model.model_version_)   # 1
+print(model.predict([[0], [199]]).tolist())  # [0, 1]
+```
+
+The threshold is a trigger, not a strict memory limit. Overshoot is
+included in one training event; no rows are carried into the next buffer
+after successful training.
+
+Before the first successful fit, both prediction methods raise RuntimeError.
+Between training events, predictions and probability columns use the last
+successful model. Each successful fit builds a sorted class table from its
+own training data; absent classes are not retained automatically.
+
+Incoming chunks must match the feature count and integer/string label
+family of pending data and the active model. New class values are allowed.
+A successful direct fit can establish a new schema and clears pending data.
+
+Validation failures do not append a chunk. If training fails after
+appending, the chunk remains buffered and the old model remains available.
+After resolving the cause, call `model.retry_pending_fit()` rather than
+resubmitting the same chunk. Retrying does not append samples or force
+training below the current threshold.
+
+| Attribute | Meaning |
+| --- | --- |
+| `is_fitted_` | Whether a successful model is available |
+| `n_samples_buffered_` | Current pending sample count |
+| `n_samples_fit_` | Rows used by the latest successful fit; absent before fitting |
+| `n_retrains_` | Lifetime successful buffered fits, including the first |
+| `model_version_` | Lifetime successful model publications, including direct fits |
+
+The two lifetime counters start at zero. Direct fit advances the model
+version but does not increment or reset the buffered-fit count. Failed
+training, prediction and below-threshold updates do not advance either.
+
+Buffers own independent copies of incoming arrays. Integer labels are
+preserved when combining signed and unsigned types. When feature dtype
+promotion requires floating storage, integer values outside that dtype's
+consecutive exact-integer range are conservatively rejected. Such a failure
+retains pending data; retrying without resolving the cause still fails.
+
 ### Tests
 
 Run from the repository root:
@@ -331,6 +395,6 @@ The second command includes both original and streaming-package tests.
 - Split-search temporary memory grows with sample, class and feature counts.
 - Feature subsampling may stop at a leaf when the selected subset has no
   useful split.
-- Performance benchmarks and buffered streaming evaluation remain pending.
+- Performance benchmarks and end-to-end streaming evaluation remain pending.
 
 See `docs/assignment-2.2-design.md` for detailed numerical policies.

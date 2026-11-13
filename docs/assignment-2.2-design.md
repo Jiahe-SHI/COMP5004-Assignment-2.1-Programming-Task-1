@@ -1,6 +1,6 @@
-# Assignment 2.2 — Initial design contract
+# Assignment 2.2 - Design contract
 
-These are implementation decisions, not completed features.
+Batch and standalone buffered tree behaviour is implemented and tested. Preprocessing, statistics, metrics, Pipeline and StreamTrainer sections describe planned behaviour.
 
 ## Inputs and state
 
@@ -8,8 +8,10 @@ These are implementation decisions, not completed features.
 - Labels: homogeneous integers or homogeneous strings.
 - Reject boolean, floating, mixed-type and missing labels.
 - Preserve integer labels without conversion through float.
-- Initial classes are sorted; cumulative class tables append new classes
-  without rearranging existing entries.
+- Each successful tree fit creates a sorted class table from that training
+  dataset. Buffered retraining does not retain absent historical classes.
+- Planned cumulative metric class tables append new classes without
+  rearranging existing entries; this differs from the tree's class table.
 - fit resets learning; partial_fit accumulates within its documented scope.
 - Reject empty training data and zero-feature training inputs.
 - A fitted predictor accepts zero rows with the correct feature count.
@@ -33,14 +35,14 @@ These are implementation decisions, not completed features.
 
 ## Decision tree
 
-- Numeric threshold splits; default Gini; entropy is also planned.
+- Numeric threshold splits support Gini (default) and entropy.
 - Root depth is 0; max_depth=0 gives a root leaf.
 - Stop when no positive information gain is available.
 - Gain ties use fixed feature and split-position ordering.
 - Leaf vote ties follow classes_ order.
 - max_features supports None, valid positive integers, sqrt and log2.
 - Use a local random generator controlled by random_state.
-- predict_proba is planned with columns aligned to classes_.
+- predict_proba returns columns aligned to the active model's classes_.
 
 ## Standalone tree buffering
 
@@ -135,8 +137,8 @@ as if it were a signature mismatch.
 - Floating thresholds use half-sums to avoid overflow and fall back to
   the lower endpoint if rounding fails to preserve lower <= threshold < upper.
 - The partition rule is X[:, feature] <= threshold.
-- Feature subsets are supplied by the caller; random feature selection
-  will be integrated with recursive tree construction.
+- Recursive tree construction supplies feature subsets selected by its
+  local random generator.
 - Temporary split-search storage is O(n_samples * n_classes +
   n_samples * n_candidate_features).
 
@@ -162,8 +164,9 @@ as if it were a signature mismatch.
   then publishes learned attributes. Failure preserves prior learned state.
 - Successful fit replaces the class table and feature schema using the
   new training data. Training arrays are not retained.
-- Batch fit trains immediately regardless of buffer_size. Incremental
-  buffering is not implemented yet.
+- Batch fit trains immediately regardless of buffer_size and clears pending
+  data after success. Buffered partial_fit uses the whole pending buffer
+  once its sample count reaches the threshold.
 - Recursive construction is subject to Python's recursion limit.
 
 ## Batch prediction policy (2026-11-13)
@@ -181,5 +184,42 @@ as if it were a signature mismatch.
 - Training and prediction share a threshold comparison helper. Integer
   bounds and downward floating threshold adjustment prevent dtype
   conversion from moving a value to the wrong side of a stored threshold.
-- The package exports DecisionTreeClassifier. Buffered partial_fit remains
-  unimplemented.
+- The package exports DecisionTreeClassifier with batch fitting, buffered
+  partial_fit and explicit retry_pending_fit.
+
+  ## Buffered tree state and recovery policy (2026-11-13)
+
+- Chunks are validated and copied before buffer publication. Numeric feature
+  count and integer/string label family must match pending data and any
+  active model. New class values are allowed.
+- Buffer storage is a list of independent chunks. Concatenation occurs at
+  training time, rather than copying the whole buffer on every arrival.
+- At size >= buffer_size, train once on all pending rows. A single oversized
+  chunk also causes only one training event.
+- Successful fit publishes the new tree and clears pending data. Failed
+  fitting preserves the old tree and pending chunks.
+- Validation failure rejects the incoming chunk. Failure after acceptance
+  retains it; callers must not resubmit the same chunk.
+- retry_pending_fit validates current configuration and retries eligible
+  pending data without appending. Empty or below-threshold buffers are
+  not trained. It does not force a final partial-buffer flush.
+- Incoming array mutation cannot alter retained training data.
+- Signed/unsigned integer labels use object storage when necessary to avoid
+  floating conversion. Feature promotion to floating storage conservatively
+  rejects integers outside that dtype's consecutive exact-integer range.
+- n_samples_buffered_ is the pending row count. n_samples_fit_ describes
+  the latest successful training dataset and is absent before first fit.
+- n_retrains_ counts lifetime successful buffered fits, including the first
+  and successful retries. Direct fit does not increment or reset it.
+- model_version_ counts lifetime successful model publications, including
+  direct fits. Both counters start at zero and are exposed as read-only
+  properties. Failed fits and prediction do not advance them.
+- Direct fit resets learning data and pending schema, but lifetime counters
+  remain cumulative. A new instance starts new counters.
+- Each fitted class table belongs to its training window. Prediction and
+  probability columns remain unchanged until a new model is published.
+- buffer_size is a trigger, not a memory cap. Pending chunks, concatenated
+  training arrays and tree-building temporaries can coexist.
+- Planned Pipeline composition owns its own buffer and invokes tree.fit;
+  its future retraining logs must not treat the standalone tree's buffered
+  counter as a Pipeline-wide event counter.

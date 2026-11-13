@@ -281,7 +281,7 @@ class _TreeNode:
 
 
 class DecisionTreeClassifier:
-    """A batch decision tree classifier using numeric threshold splits.
+    """A decision tree classifier with batch and buffered incremental fitting.
 
     Parameters
     ----------
@@ -293,7 +293,8 @@ class DecisionTreeClassifier:
         Number of randomly selected candidate features at each split.
         None uses all features. Named options round down, with minimum one.
     buffer_size : int, default=500
-        Reserved threshold for buffered incremental training.
+        Pending sample threshold for incremental retraining.
+        partial_fit trains once on the entire buffer at or above this size.
         Batch fit always trains on all supplied rows immediately.
     criterion : {"gini", "entropy"}, default="gini"
         Impurity criterion.
@@ -321,11 +322,151 @@ class DecisionTreeClassifier:
         self.criterion = criterion
         self.random_state = random_state
         self._validate_parameters()
+        self._buffer_chunks = []
+        self._n_samples_buffered = 0
+        self._buffer_n_features = None
+        self._buffer_label_kind = None
+        self._n_retrains = 0
+        self._model_version = 0
 
     @property
     def is_fitted_(self):
         """Whether a complete tree has been fitted successfully."""
         return hasattr(self, "tree_")
+
+    @property
+    def n_samples_buffered_(self):
+        """Number of samples waiting for buffered training."""
+        return self._n_samples_buffered
+
+    @property
+    def n_retrains_(self):
+        """Successful buffered fits over this instance's lifetime.
+
+        Includes the first buffered fit and successful explicit retries.
+        Direct fit calls do not increment or reset this count.
+        """
+        return self._n_retrains
+
+    @property
+    def model_version_(self):
+        """Successful model publications over this instance's lifetime.
+
+        Starts at zero. Every successful direct or buffered fit increments
+        it once; failed fitting and prediction leave it unchanged.
+        """
+        return self._model_version
+
+    @staticmethod
+    def _label_kind(labels):
+        """Classify nonempty labels already accepted by validate_y."""
+        if labels.dtype.kind in "iu":
+            return "integer"
+        if labels.dtype.kind == "U":
+            return "string"
+
+        # Validated object arrays contain homogeneous integers or strings.
+        return "string" if isinstance(labels[0], str) else "integer"
+
+    def _append_buffer(self, X, y):
+        """Validate and copy one training chunk into the pending buffer.
+
+        X has shape (n_samples, n_features); y has shape (n_samples,).
+        Feature counts must match pending data and any fitted model.
+        Labels must remain integer-valued or string-valued within a stream.
+
+        Validation and both copies complete before buffer publication.
+        Appending does not train or modify the active prediction model.
+        """
+        X_checked, y_checked = validate_X_y(X, y)
+        n_features = X_checked.shape[1]
+        self._validate_parameters(n_features)
+
+        if (self._buffer_n_features is not None and n_features != self._buffer_n_features):
+            raise ValueError("X feature count must match the pending buffer.")
+        if self.is_fitted_ and n_features != self.n_features_in_:
+            raise ValueError("X feature count must match the fitted model.")
+
+        label_kind = self._label_kind(y_checked)
+        if (self._buffer_label_kind is not None and label_kind != self._buffer_label_kind):
+            raise TypeError("Label type must match the pending buffer.")
+        if self.is_fitted_:
+            fitted_kind = self._label_kind(self.classes_)
+            if label_kind != fitted_kind:
+                raise TypeError("Label type must match the fitted model.")
+
+        # Copy both arrays before changing any buffer state.
+        X_owned = np.array(X_checked, copy=True)
+        y_owned = np.array(y_checked, copy=True)
+        X_owned.setflags(write=False)
+        y_owned.setflags(write=False)
+
+        self._buffer_chunks.append((X_owned, y_owned))
+        self._n_samples_buffered += X_owned.shape[0]
+        self._buffer_n_features = n_features
+        self._buffer_label_kind = label_kind
+        return self
+
+    def _clear_buffer(self):
+        """Release pending chunks after successful training."""
+        self._buffer_chunks = []
+        self._n_samples_buffered = 0
+        self._buffer_n_features = None
+        self._buffer_label_kind = None
+
+    def _buffer_arrays(self):
+        """Combine pending chunks without silently rounding large integers."""
+        X_parts = [X for X, _ in self._buffer_chunks]
+        y_parts = [y for _, y in self._buffer_chunks]
+        X_dtype = np.result_type(*(X.dtype for X in X_parts))
+
+        # Mixed integer/float or signed/unsigned inputs may promote to float.
+        # Conservatively require integer values within its exact integer range.
+        if X_dtype.kind == "f":
+            exact_limit = 2 ** (np.finfo(X_dtype).nmant + 1)
+            for X in X_parts:
+                if X.dtype.kind in "iu":
+                    if int(X.min()) < -exact_limit or int(X.max()) > exact_limit:
+                        raise ValueError(
+                            "Buffered feature dtype promotion may lose integer "
+                            "precision; use a consistent exact numeric dtype."
+                        )
+
+        X_all = np.concatenate(X_parts, axis=0, dtype=X_dtype)
+        y_dtype = np.result_type(*(y.dtype for y in y_parts))
+        if self._buffer_label_kind == "integer" and y_dtype.kind not in "iu":
+            # Object storage preserves mixed signed/unsigned Python integers.
+            y_dtype = np.dtype(object)
+        y_all = np.concatenate(y_parts, axis=0, dtype=y_dtype)
+        return X_all, y_all
+
+    def partial_fit(self, X_chunk, y_chunk):
+        """Append a chunk and train once when the buffer reaches buffer_size.
+
+        Train on the entire buffer, including threshold overshoot.
+        Validation failures do not append the chunk. If training fails after
+        appending, retain the chunk and the previous model. After resolving
+        the cause, call retry_pending_fit instead of resubmitting that chunk.
+        Return self. A partial final buffer is not automatically trained.
+        """
+        self._append_buffer(X_chunk, y_chunk)
+        return self.retry_pending_fit()
+
+    def retry_pending_fit(self):
+        """Retry eligible pending data without appending any samples.
+
+        Return self without training when the buffer is empty or below the
+        current buffer_size. This method does not force a final partial fit.
+        At the threshold, train once on the entire buffer. Publish the new
+        model and clear pending data only after success. Propagate failures
+        while preserving the old model and all pending chunks.
+        """
+        self._validate_parameters(self._buffer_n_features)
+        if self.n_samples_buffered_ >= self.buffer_size:
+            X_all, y_all = self._buffer_arrays()
+            self.fit(X_all, y_all)
+            self._n_retrains += 1
+        return self
 
     def _validate_parameters(self, n_features=None):
         validate_tree_parameters(
@@ -353,6 +494,8 @@ class DecisionTreeClassifier:
         X has shape (n_samples, n_features); y has shape (n_samples,).
         Validation and complete candidate construction precede publication.
         Training arrays are not retained by the fitted model.
+        Successful fitting clears pending buffered data.
+        Failed fitting preserves the previous model and pending buffer.
         """
         X_checked, y_checked = validate_X_y(X, y)
         n_features = X_checked.shape[1]
@@ -377,7 +520,9 @@ class DecisionTreeClassifier:
             max_features_=feature_count,
             n_samples_fit_=X_checked.shape[0],
             tree_=candidate,
+            _model_version=self._model_version + 1,
         )
+        self._clear_buffer()
         return self
 
     def _build_tree(self, X, codes, n_classes, depth, rng, feature_count):
@@ -429,7 +574,10 @@ class DecisionTreeClassifier:
 
     def _validate_prediction_X(self, X):
         if not self.is_fitted_:
-            raise RuntimeError("DecisionTreeClassifier is not fitted. Call fit before prediction.")
+            raise RuntimeError(
+                "DecisionTreeClassifier is not fitted. "
+                "Call fit or supply enough samples via partial_fit "
+                "before prediction.")
 
         return validate_numeric_X(X, allow_empty=True, n_features=self.n_features_in_)
 
