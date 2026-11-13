@@ -261,3 +261,76 @@ The `benchmark/` runner and `demo/` are repository resources; the installed dist
 | Crisanto | Sorting, searching, ranking, percentiles and final report |
 | Shubh | Numerical differentiation, pipelines, notebook demonstration and demo video |
 | Lingqi | Shared I/O work, evaluation metrics and benchmarks |
+
+
+## Assignment 2.2: batch decision tree
+
+This personal extension builds on the original NumCompute toolkit.
+The original `numcompute` package is retained; new functionality is
+provided by `numcompute_stream`.
+
+Currently implemented:
+
+- Shared feature, label and parameter validation.
+- Numeric decision tree classification with Gini or entropy.
+- Vectorised split evaluation and batch prediction.
+- `fit`, `predict` and `predict_proba`.
+- Deterministic tie handling and seeded feature subsampling.
+
+Buffered `partial_fit` and the remaining streaming components are not
+implemented yet. `buffer_size` is validated configuration; batch `fit`
+trains immediately on all supplied rows.
+
+### Minimal example
+
+```python
+from numcompute_stream import DecisionTreeClassifier
+
+model = DecisionTreeClassifier(max_depth=2, random_state=42)
+model.fit([[0.0], [1.0], [2.0], [3.0]], ["low", "low", "high", "high"])
+
+print(model.classes_.tolist())
+# ['high', 'low']
+
+print(model.predict([[0.5], [2.5]]).tolist())
+# ['low', 'high']
+
+print(model.predict_proba([[0.5], [2.5]]).tolist())
+# [[0.0, 1.0], [1.0, 0.0]]
+```
+
+Probability columns follow `classes_`. Values are unsmoothed class
+frequencies in each reached leaf.
+
+### Input and state rules
+
+- X has shape `(n_samples, n_features)` and contains finite real numbers.
+- y has shape `(n_samples,)` and contains homogeneous integers or strings.
+- Missing labels, boolean labels and floating labels are rejected.
+- Trees reject NaN and infinity; missing features require preprocessing.
+- Training requires at least one sample and one feature.
+- Fitted models accept empty prediction input with the correct feature count.
+- Successful fit replaces the learned model; failed fit preserves it.
+- Prediction does not update training state.
+
+### Tests
+
+Run from the repository root:
+
+```powershell
+.\.venv\Scripts\python.exe -m unittest discover -s tests/stream -t . -v
+.\.venv\Scripts\python.exe -m unittest discover -s tests -v
+```
+
+The second command includes both original and streaming-package tests.
+
+### Current limitations
+
+- Gains <= 1e-12 are treated as numerical zero.
+- Recursive construction is subject to Python's recursion limit.
+- Split-search temporary memory grows with sample, class and feature counts.
+- Feature subsampling may stop at a leaf when the selected subset has no
+  useful split.
+- Performance benchmarks and buffered streaming evaluation remain pending.
+
+See `docs/assignment-2.2-design.md` for detailed numerical policies.

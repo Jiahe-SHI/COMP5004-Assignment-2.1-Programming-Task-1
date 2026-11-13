@@ -122,3 +122,64 @@ as if it were a signature mismatch.
 - Buffer threshold overshoot and failed-training recovery.
 - Rolling-window partial eviction and AUC tied-score handling.
 - Stable label mapping, including large integer labels.
+
+
+## Split search numerical policy (2026-11-13)
+
+- Candidate splits occur only between adjacent distinct feature values.
+- Class counts and impurity are evaluated in batches for each feature.
+- Gains <= 1e-12 are treated as numerical zero.
+- Candidates within absolute tolerance 1e-12 of the global maximum gain
+  are tied. Prefer the smallest feature index, then the earliest boundary.
+- Integer thresholds use exact Python integer midpoint arithmetic.
+- Floating thresholds use half-sums to avoid overflow and fall back to
+  the lower endpoint if rounding fails to preserve lower <= threshold < upper.
+- The partition rule is X[:, feature] <= threshold.
+- Feature subsets are supplied by the caller; random feature selection
+  will be integrated with recursive tree construction.
+- Temporary split-search storage is O(n_samples * n_classes +
+  n_samples * n_candidate_features).
+
+
+## Batch tree construction policy (2026-11-13)
+
+- Root depth is zero. max_depth=0 creates a root leaf.
+- Stop on pure labels, insufficient samples, the depth limit, or no
+  candidate gain greater than the documented numerical tolerance.
+- min_samples_split controls the parent node's eligibility to split;
+  it is not a minimum leaf size.
+- Leaf vote ties follow the sorted classes_ order.
+- Every node retains counts in the complete fitted class order.
+- max_features=None uses all features. Positive integers specify a count.
+  sqrt and log2 round down, with a minimum of one feature.
+- Each eligible node samples features without replacement using a local
+  random generator. Selected features are searched in ascending order.
+- A selected subset with no useful split produces a leaf; no replacement
+  features are sampled.
+- Each fit recreates the local generator. An integer seed reproduces the
+  tree for identical input and configuration without changing global RNG state.
+- fit validates configuration again, builds a complete candidate tree,
+  then publishes learned attributes. Failure preserves prior learned state.
+- Successful fit replaces the class table and feature schema using the
+  new training data. Training arrays are not retained.
+- Batch fit trains immediately regardless of buffer_size. Incremental
+  buffering is not implemented yet.
+- Recursive construction is subject to Python's recursion limit.
+
+## Batch prediction policy (2026-11-13)
+
+- predict returns original labels with shape (n_samples,), preserving
+  the fitted class-table dtype and input row order.
+- predict_proba returns unsmoothed leaf class frequencies with shape
+  (n_samples, n_classes_). Columns follow classes_.
+- Traversal uses a stack of nodes and sample-index arrays. Routing and
+  output assignment operate on batches, without per-sample Python traversal.
+- Prediction before successful fitting raises RuntimeError.
+- Empty prediction input is supported only with the fitted feature count.
+- Prediction rejects NaN, infinity and invalid input shapes or types.
+- Prediction does not update model state; returned arrays are independent.
+- Training and prediction share a threshold comparison helper. Integer
+  bounds and downward floating threshold adjustment prevent dtype
+  conversion from moving a value to the wrong side of a stored threshold.
+- The package exports DecisionTreeClassifier. Buffered partial_fit remains
+  unimplemented.
