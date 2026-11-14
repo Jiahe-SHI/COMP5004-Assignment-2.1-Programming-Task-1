@@ -272,7 +272,7 @@ The `benchmark/` runner and `demo/` are repository resources; the installed dist
 | Lingqi | Shared I/O work, evaluation metrics and benchmarks |
 
 
-## Assignment 2.2: batch and buffered decision tree
+## Assignment 2.2: streaming machine learning framework
 
 This personal extension builds on the original NumCompute toolkit.
 The original `numcompute` package is retained; new functionality is
@@ -290,14 +290,19 @@ Currently implemented:
   optional fixed-edge histograms.
 - Cross-component checks for preprocessing, tree inputs and independent
   copied snapshots.
+- Cumulative confusion counts and classification metrics.
+- Sample-based rolling classification metrics.
+- Binary ROC AUC with cumulative and rolling evaluation state.
+- Integration checks for chunk partitioning, dynamic labels, probability
+  column alignment, independent snapshots and failed-update recovery.
 
 Buffered training is implemented for the standalone decision tree.
 Batch `fit` trains immediately on all supplied rows. `partial_fit` copies
 incoming chunks and trains once on the entire pending buffer when its
 sample count reaches or exceeds `buffer_size`.
 
-Streaming metrics, Pipeline, StreamTrainer, streaming CSV integration
-and visualisation remain pending.
+Pipeline, StreamTrainer, streaming CSV integration and visualisation
+remain pending.
 
 ### Minimal example
 
@@ -430,9 +435,87 @@ through component APIs. Automatic Pipeline buffering, paired snapshot publicatio
 and external-transformer interoperability remain future work. Updating a
 preprocessor used by an existing tree can invalidate its input mapping.
 
-Verified full regression: 708 tests passed, comprising 497 original
-tests and 211 streaming-package tests. See
+Verified full regression: 760 tests passed, comprising 497 original
+tests and 263 streaming-package tests. See
 `docs/assignment-2.2-testing.md` for commands and recorded results.
+
+### Cumulative and rolling metrics
+
+The package exports StreamingConfusionMatrix,
+StreamingClassificationMetrics, RollingClassificationMetrics,
+binary_roc_auc, StreamingROCAUC and RollingROCAUC.
+
+Stateful metrics provide update, result and reset. Updates require
+nonempty one-dimensional inputs and return self. Queries do not learn.
+
+```python
+from numcompute_stream import (
+    StreamingClassificationMetrics,
+    RollingClassificationMetrics,
+    StreamingROCAUC,
+    RollingROCAUC,
+)
+
+cumulative = StreamingClassificationMetrics()
+rolling = RollingClassificationMetrics(window_size=2)
+auc = StreamingROCAUC(positive_label=1)
+rolling_auc = RollingROCAUC(window_size=2, positive_label=1)
+
+cumulative.update([0, 1], [0, 1])
+rolling.update([0, 1], [0, 1])
+auc.update([0, 1], [0.1, 0.2])
+rolling_auc.update([0, 1], [0.1, 0.2])
+
+cumulative.update([0, 1], [1, 1])
+rolling.update([0, 1], [1, 1])
+auc.update([0, 1], [0.8, 0.9])
+rolling_auc.update([0, 1], [0.8, 0.9])
+
+print(cumulative.result()["accuracy"])  # 0.75
+print(rolling.result()["accuracy"])     # 0.5
+print(auc.result()["auc"])              # 0.75
+print(rolling_auc.result()["auc"])      # 1.0
+```
+
+Confusion matrix rows are true classes and columns are predictions.
+Per-class precision, recall and F1 follow the returned class order.
+Macro averages include every class in that table; weighted averages
+use true-label support. zero_division accepts 0 or 1, defaulting to 0.
+Without evaluated samples, scalar metrics and configured per-class
+metrics return NaN.
+
+Initial class order is preserved and new labels append. Rolling
+classification retains observed classes even after their samples leave
+the window, so absent classes still participate in macro averages.
+
+Rolling windows contain the latest W evaluated samples. Their n_samples
+describes the current window; n_samples_seen and n_samples_seen_ describe
+all successful input since reset.
+
+AUC requires an explicit positive label and finite scores that increase
+towards that class. Select probability columns using the current tree's
+classes_; do not assume the positive class is column 1. Integration tests
+demonstrate zero positive probability when the positive class is absent
+from the tree. This alignment is explicit test composition, not an
+implemented StreamTrainer feature.
+
+Tied scores receive half credit. Missing either class yields NaN.
+Stateful AUC retains its first negative label until reset, including
+after that label leaves a rolling window. Multiclass AUC is unsupported.
+
+Stateful AUC stores float64 scores and rejects integer scores that cannot
+be represented exactly. Higher-precision floating scores follow float64
+rounding. The standalone binary_roc_auc function preserves typed integer
+scores during sorting.
+
+Cumulative classification stores O(K^2) counts for K classes, without raw
+sample history. Rolling classification retains at most W sample pairs
+plus its growing class table and O(K^2) counts, and recounts the window
+on update. Exact cumulative AUC retains all evaluated labels and scores;
+its memory grows with history. Rolling AUC retains at most W sample pairs.
+Update temporaries also depend on incoming chunk size. AUC queries sort
+the retained data; these APIs do not promise constant-time updates or
+queries.
 
 ### Tests
 

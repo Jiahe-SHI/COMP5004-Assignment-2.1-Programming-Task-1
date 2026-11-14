@@ -1,10 +1,13 @@
 # Assignment 2.2 - Design contract
 
-Batch and standalone buffered trees, incremental preprocessing and
-StreamingStats are implemented and tested. Metrics, Pipeline and
-StreamTrainer sections describe planned behaviour. Cross-component tests
-cover manual preprocessing/tree composition and independent snapshots;
-automatic Pipeline coordination remains unimplemented.
+Batch and standalone buffered trees, incremental preprocessing,
+StreamingStats, cumulative and rolling classification metrics, and binary
+ROC AUC are implemented and tested.
+
+Pipeline and StreamTrainer sections describe planned behaviour.
+Cross-component tests explicitly compose components and verify independent
+snapshots and probability-column alignment. Automatic Pipeline coordination
+and StreamTrainer evaluation remain unimplemented.
 
 ## Inputs and state
 
@@ -14,8 +17,10 @@ automatic Pipeline coordination remains unimplemented.
 - Preserve integer labels without conversion through float.
 - Each successful tree fit creates a sorted class table from that training
   dataset. Buffered retraining does not retain absent historical classes.
-- Planned cumulative metric class tables append new classes without
-  rearranging existing entries; this differs from the tree's class table.
+- Cumulative and rolling classification metric class tables append new
+  classes without rearranging existing entries. Rolling tables retain
+  classes after their samples leave the window. This differs from the
+  tree's per-training class table.
 - fit resets learning; partial_fit accumulates within its documented scope.
 - Reject empty training data and zero-feature training inputs.
 - A fitted predictor accepts zero rows with the correct feature count.
@@ -123,9 +128,10 @@ as if it were a signature mismatch.
 
 The checklist below spans implemented components and future integration.
 Current tests cover independent numerical references, unequal chunks,
-component snapshots, categorical expansion and standalone tree recovery.
-External-transformer interoperability, Pipeline coordination and rolling
-metrics remain pending.
+component snapshots, categorical expansion, standalone tree recovery,
+rolling-window eviction, tied AUC scores and probability-column alignment.
+External-transformer interoperability and automatic Pipeline/StreamTrainer
+coordination remain pending.
 
 - Vectorised versus independent reference outputs.
 - Unequal chunk sizes versus full-batch statistics.
@@ -341,3 +347,90 @@ State and failure behaviour:
 - reset clears observations and feature schema while retaining bin edges.
 - result and quantile require a successful update. histogram additionally
   requires bin_edges configured at construction.
+
+## Classification metrics and ROC AUC contract
+
+Implemented public APIs:
+
+| API | Methods or arguments | Scope |
+| --- | --- | --- |
+| StreamingConfusionMatrix | update, result, reset | Cumulative counts |
+| StreamingClassificationMetrics | update, result, reset | Cumulative classification |
+| RollingClassificationMetrics | window_size; update, result, reset | Latest W samples |
+| binary_roc_auc | y_true, y_score, positive_label | One supplied dataset |
+| StreamingROCAUC | positive_label; update, result, reset | Full evaluation history |
+| RollingROCAUC | window_size, positive_label; update, result, reset | Latest W samples |
+
+Classification:
+
+- Labels are homogeneous integers or strings, consistently across updates.
+- Initial classes must be unique and nonempty when explicitly supplied.
+  They define an initial order, not a closed whitelist.
+- New labels from truth or predictions append in sorted order per update.
+- Confusion counts use NumPy index mapping and bincount. Object-label
+  validation may inspect individual elements; the implementation is not
+  claimed to eliminate every Python-level scalar operation.
+- Rows represent truth and columns represent predictions.
+- Counts are int64. Updates exceeding the cumulative int64 sample-count
+  capacity of StreamingConfusionMatrix are rejected.
+- Accuracy and per-class metrics derive from counts, not chunk averages.
+- F1 uses 2 * TP / (true support + predicted support).
+- Macro averages include the complete current class table.
+- Weighted averages use true support.
+- zero_division is numeric 0 or 1; booleans are rejected.
+- With no evaluated samples, accuracy and aggregate metrics are NaN.
+  Per-class arrays contain NaN for configured classes, or are empty when
+  no classes exist. Confusion counts remain zero.
+- Returned arrays are independent of internal state.
+
+Windows and lifecycle:
+
+- window_size is a positive integer, excluding booleans.
+- Windows contain the latest W samples, including partial chunk eviction.
+- The entire incoming chunk is validated before truncation.
+- Oversized chunks retain only their final W rows.
+- Rolling classification keeps historical class mappings until reset;
+  absent historical classes still affect macro averages.
+- Rolling n_samples is window occupancy; n_samples_seen and the property
+  n_samples_seen_ count all successful input since reset.
+- reset retains configuration and explicitly supplied initial classes.
+- Updates prepare candidates before publishing state.
+- Tests cover invalid-update recovery, independent deepcopy snapshots,
+  simulated rolling recount failure and rolling AUC allocation failure.
+
+Binary AUC:
+
+- positive_label is required; larger scores indicate the positive class.
+- Only one other label is permitted. Stateful AUC fixes that negative
+  label until reset, even after it leaves a rolling window.
+- Scores must be one-dimensional, finite and real numeric values.
+- Stateful updates reject empty chunks. The standalone function accepts
+  empty input and returns NaN after validating its arguments.
+- Missing either class yields NaN; equal scores receive half credit.
+- Score groups are sorted and counted without a pairwise sample matrix.
+- Stateful score storage is float64. Integer scores must convert exactly;
+  higher-precision floating scores follow float64 rounding.
+- The standalone function preserves typed integer score ordering.
+  Array-like inputs follow NumPy dtype inference.
+- AUC is exact over retained scores subject to representation and arithmetic
+  limits. Multiclass AUC is unsupported.
+- Probability columns must be aligned using the active tree's classes_.
+  Tests explicitly use zero positive probability when that class is absent.
+  Automatic trainer-level alignment remains future work.
+
+Memory and work:
+
+- Cumulative classification retains O(K^2) counts, not raw sample history.
+- Rolling classification retains O(W) sample pairs plus class mappings
+  and O(K^2) counts. K can grow with observed classes.
+- Rolling classification validates/counts the incoming chunk and recounts
+  the retained window; updates are not constant-time.
+- Exact cumulative AUC retains all label/score chunks. Updates also copy
+  the history's chunk-reference lists.
+- Rolling AUC retains one owned window of at most W label/score pairs;
+  oversized input prefixes are not retained through array views.
+- AUC queries concatenate and sort retained samples, using O(N log N)
+  time and O(N) auxiliary memory, with N bounded by W for rolling AUC.
+- Update temporaries depend on incoming chunk size.
+- No benchmark or long-stream memory measurement is established by these
+  unit tests.

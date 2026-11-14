@@ -1,14 +1,22 @@
-# Assignment 2.2 - Decision tree testing
+# Assignment 2.2 - Implementation testing
 
 ## Scope
 
-Implemented functionality includes shared validation, label encoding,
-Gini and entropy, vectorised split search, recursive batch fitting,
-batch prediction, whole-buffer retraining, explicit retry and training
-state counters.
+Implemented functionality includes shared validation, batch and buffered
+decision trees, incremental preprocessing, StreamingStats, cumulative
+and rolling classification metrics, and cumulative and rolling binary AUC.
 
-Incremental preprocessing, statistics, metrics, Pipeline, StreamTrainer,
-streaming CSV integration and visualisation remain pending.
+Pipeline, StreamTrainer, streaming CSV integration and visualisation
+remain pending.
+
+Verification sections below are chronological checkpoints. Statements
+such as "pending" or "not yet rerun" inside earlier entries describe the
+state at that checkpoint, not the current implementation.
+
+The buffered-tree work was committed and pushed as 5a4d6cc.
+Incremental preprocessing and statistics were committed and pushed as
+be0694e. The current development branch is Jiahe-assignment-2.2.
+The metrics changes described below have not yet been committed.
 
 ## Environment
 
@@ -304,3 +312,100 @@ git diff --check reported it. Subsequent checking reported only Git
 line-ending conversion warnings.
 
 Final documentation review, staging, commit and push are pending.
+
+## Cumulative and rolling metrics verification (2026-11-14)
+
+Implemented cumulative confusion counts, per-class classification metrics,
+macro and support-weighted summaries, binary ROC AUC, and sample-based
+rolling classification/AUC windows.
+
+All six public metrics APIs are exported from numcompute_stream.
+Tests use unittest and NumPy; no external machine-learning metric library
+is required.
+
+### Added coverage
+
+| File | Tests | Focus |
+| --- | ---: | --- |
+| test_streaming_confusion_matrix.py | 7 | Stable labels, counts, ownership and invalid updates |
+| test_streaming_classification_metrics.py | 7 | Hand calculations, unequal chunks, zero division and reset |
+| test_binary_roc_auc.py | 8 | Ordering, ties, undefined results and integer score precision |
+| test_streaming_roc_auc.py | 8 | Cumulative history, cross-chunk comparisons and failure recovery |
+| test_rolling_classification_metrics.py | 8 | Partial eviction, oversized chunks and retained class mappings |
+| test_rolling_roc_auc.py | 8 | Window AUC, class disappearance, bounded history and reset |
+| test_metrics_integration.py | 6 | Partitioning, tree probabilities, snapshots and candidate failures |
+| Total | 52 | |
+
+subTest cases do not count as additional test methods.
+
+### Recorded user-checkout results
+
+Dedicated suites were run with warnings treated as errors.
+
+| Check | Tests | Time | Result |
+| --- | ---: | ---: | --- |
+| Cumulative confusion matrix | 7 | 0.155 s | OK |
+| Cumulative classification metrics | 7 | 0.329 s | OK |
+| Binary AUC, after test-data correction | 8 | 0.129 s | OK |
+| Cumulative AUC | 8 | 0.007 s | OK |
+| Rolling classification metrics | 8 | 0.195 s | OK |
+| Rolling AUC | 8 | 0.004 s | OK |
+| Metrics integration | 6 | 0.090 s | OK |
+| Final streaming-package suite | 263 | 0.231 s | OK |
+| Full original-plus-streaming regression | 760 | 0.821 s | OK |
+
+The full suite comprises 497 original tests and 263 streaming-package
+tests. The new package previously contained 211 tests; metrics added 52.
+These times are test execution measurements, not performance benchmarks.
+
+### Debugging evidence
+
+Two initial binary AUC tests expected 0.75 for labels [0, 1, 0, 1] and
+scores [0.1, 0.4, 0.35, 0.8]. Both positive scores exceeded both negative
+scores, so the implementation correctly returned 1.0.
+
+The positive score 0.4 was changed to 0.3 in the direct example and its
+noncontiguous-array counterpart. Three of four positive-negative pairs
+then receive full credit, giving the intended AUC of 0.75.
+No AUC algorithm change was needed. The corrected eight-test suite and
+subsequent full regression passed.
+
+git diff --check reported only LF-to-CRLF conversion warnings for
+numcompute_stream/__init__.py and numcompute_stream/metrics.py at the
+code-verification checkpoint. No whitespace errors were reported.
+
+### Integration boundaries and limitations
+
+- Partition tests compare cumulative and rolling results across unequal
+  chunks, singleton updates and oversized chunks.
+- Scalar confusion counts and pairwise AUC provide independent test
+  references on small datasets.
+- Tree tests select positive probability by classes_, including a positive
+  class in column zero and a positive class absent after refitting.
+- The absent-positive policy is demonstrated by a test-local helper;
+  StreamTrainer and Pipeline are not implemented by these tests.
+- Snapshot tests verify independent metric copies.
+- Simulated recount/allocation failures verify rolling state preservation.
+- Cumulative AUC retains full history; rolling AUC retains at most W pairs.
+- Rolling classification retains historical classes, so its class table and
+  dense matrix may grow even though its sample window is bounded.
+- Float64 score storage and integer exactness checks remain documented
+  constraints of stateful AUC.
+- Performance benchmarks and long-stream memory measurements remain pending.
+
+### Reproduction
+
+```powershell
+python -W error -m unittest tests.stream.test_streaming_confusion_matrix -v
+python -W error -m unittest tests.stream.test_streaming_classification_metrics -v
+python -W error -m unittest tests.stream.test_binary_roc_auc -v
+python -W error -m unittest tests.stream.test_streaming_roc_auc -v
+python -W error -m unittest tests.stream.test_rolling_classification_metrics -v
+python -W error -m unittest tests.stream.test_rolling_roc_auc -v
+python -W error -m unittest tests.stream.test_metrics_integration -v
+python -m unittest discover -s tests/stream -t . -v
+python -m unittest discover -s tests -v
+git diff --check
+```
+
+Metrics documentation review, staging, commit and push are pending.
