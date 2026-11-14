@@ -1,6 +1,10 @@
 # Assignment 2.2 - Design contract
 
-Batch and standalone buffered tree behaviour is implemented and tested. Preprocessing, statistics, metrics, Pipeline and StreamTrainer sections describe planned behaviour.
+Batch and standalone buffered trees, incremental preprocessing and
+StreamingStats are implemented and tested. Metrics, Pipeline and
+StreamTrainer sections describe planned behaviour. Cross-component tests
+cover manual preprocessing/tree composition and independent snapshots;
+automatic Pipeline coordination remains unimplemented.
 
 ## Inputs and state
 
@@ -115,7 +119,13 @@ as if it were a signature mismatch.
   retraining events and timing.
 - Memory measurements state their scope; array bytes are not process RSS.
 
-## Planned focused verification
+## Verification scope
+
+The checklist below spans implemented components and future integration.
+Current tests cover independent numerical references, unequal chunks,
+component snapshots, categorical expansion and standalone tree recovery.
+External-transformer interoperability, Pipeline coordination and rolling
+metrics remain pending.
 
 - Vectorised versus independent reference outputs.
 - Unequal chunk sizes versus full-batch statistics.
@@ -223,3 +233,111 @@ as if it were a signature mismatch.
 - Planned Pipeline composition owns its own buffer and invokes tree.fit;
   its future retraining logs must not treat the standalone tree's buffered
   counter as a Pipeline-wide event counter.
+
+## Incremental one-hot encoding contract
+
+The following rules are implemented by OneHotEncoder and covered by
+22 dedicated tests. Pipeline encoder/model snapshot coordination remains
+planned; independent encoder deepcopy behaviour has been tested.
+
+- fit resets learned categories; partial_fit extends them.
+- Existing category indices within each input feature remain unchanged.
+- Newly observed ordinary categories are sorted deterministically within
+  each update and appended after existing categories.
+- Missing values are represented by a distinct category, not a reserved
+  ordinary string. A missing category is added only when observed during
+  learning; when newly added, it follows that update's ordinary additions.
+- Output blocks follow the original input feature order.
+- Expanding an earlier feature can shift the output offsets of later
+  features, even though their internal category indices remain stable.
+- transform does not learn or expand categories.
+- handle_unknown defaults to ignore: an unknown value produces zeros
+  throughout that feature's output block.
+- handle_unknown=error rejects unknown values.
+- An unlearned missing category follows the same unknown-value policy.
+- Training requires a nonempty two-dimensional input. Incremental updates
+  retain the original feature count.
+- Output is a new dense float64 matrix.
+- Conversion may loop over features, but must avoid Python loops that
+  encode individual samples.
+- Dense output memory grows with sample count times total learned
+  categories. Category state can grow as new categories arrive.
+- Input validation and candidate category construction must complete
+  before publishing updated learned state.
+
+The future Pipeline must preserve a matching encoder/model snapshot.
+An updated encoder must not be paired directly with a tree trained on
+an earlier output layout.
+
+Input category types:
+
+- Each feature accepts strings or real numeric categories, optionally
+  containing None or numeric NaN as missing values.
+- Strings and numbers cannot be mixed within one feature.
+- Equal numeric values such as 1 and 1.0 share a category.
+- Boolean, complex, infinite and unsupported object values are rejected.
+- Ordinary strings such as "None" and "nan" are not missing values.
+- A feature's learned string/numeric kind is retained during incremental
+  updates and transformation. An entirely missing feature can acquire
+  its ordinary category kind in a later update.
+- Heterogeneous input should use nested Python lists or object arrays.
+  String coercion performed before calling the encoder cannot be undone.
+- Object input requires scalar type inspection during validation.
+  Category factorisation, lookup and output assignment use NumPy batch
+  operations rather than Python loops encoding individual samples.
+
+
+## Streaming descriptive statistics
+
+StreamingStats implements update_stats(X_chunk), result(), quantile(q)
+and histogram(), with reset() clearing learned state.
+
+- Each instance maintains independent state; update_stats is an instance
+  method, not a module-level global accumulator.
+- Input shape is (samples, features). Updates require nonempty numeric
+  input with a consistent feature count.
+- NaN is excluded independently per feature; infinity is rejected.
+- result returns independent count, mean and population variance arrays
+  of shape (n_features,), plus n_rows.
+- n_rows includes entirely missing rows; count records valid observations
+  separately for each feature.
+- Unobserved features have count 0 and mean/variance NaN.
+- Moments use the shared float64 block-merging helper with ddof=0.
+
+Quantiles:
+
+- quantile(q) uses all valid observations received since reset.
+- It retains independent float64 copies of valid observations by feature
+  and chunk, then concatenates them when queried.
+- Quantiles use linear interpolation and are exact over retained values,
+  subject to float64 representation and arithmetic limits.
+- Scalar q returns (n_features,); a sequence of k probabilities returns
+  (k, n_features). Probabilities must be finite and within [0, 1].
+- Unobserved features return NaN without all-NaN reduction warnings.
+- Persistent history memory grows with valid observations and retained
+  chunk references. Queries require additional temporary memory.
+- Updates copy historical reference lists, not historical sample arrays;
+  reference-management work therefore also grows with retained chunk count.
+- This is a global-history implementation, not a sliding window.
+
+Histograms:
+
+- Optional bin_edges are copied at construction and shared across features.
+- Edges must be finite and strictly increasing after float64 conversion.
+- Counts have shape (n_features, n_bins).
+- Bins are left-closed and right-open, except the final bin includes its
+  right endpoint.
+- NaN and out-of-range values are excluded from histogram counts.
+  Out-of-range valid values still contribute to moments and quantiles.
+- Histogram state uses O(n_features * n_bins) additional memory.
+- histogram returns independent count and edge arrays.
+
+State and failure behaviour:
+
+- Queries do not learn or expose internal mutable arrays.
+- Updates prepare moments, history and histogram counts before publication.
+- Validation, numerical or histogram-calculation failure preserves prior
+  accumulated state.
+- reset clears observations and feature schema while retaining bin edges.
+- result and quantile require a successful update. histogram additionally
+  requires bin_edges configured at construction.

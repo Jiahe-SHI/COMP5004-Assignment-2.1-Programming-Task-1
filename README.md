@@ -4,6 +4,15 @@ A modular scientific computing toolkit built with Python and NumPy for COMP 5004
 
 The computational package uses only the Python standard library and NumPy.
 
+The original `numcompute` package was developed as a group project for
+Assignment 2.1. Its documentation and contribution records are retained
+below.
+
+For Assignment 2.2, this repository is being extended individually with
+the new `numcompute_stream` package on the `Jiahe-assignment-2.2` branch.
+The Assignment 2.2 section later in this README documents the new
+streaming components, their current implementation status and limitations.
+
 ## Requirements and installation
 
 - Python **3.10 or later**.
@@ -276,14 +285,19 @@ Currently implemented:
 - Vectorised split evaluation and batch prediction.
 - `fit`, `partial_fit`, `retry_pending_fit`, `predict` and `predict_proba`.
 - Whole-buffer retraining, failure recovery and observable training state.
+- Incremental StandardScaler, mean/constant Imputer and OneHotEncoder.
+- StreamingStats with cumulative moments, exact global quantiles and
+  optional fixed-edge histograms.
+- Cross-component checks for preprocessing, tree inputs and independent
+  copied snapshots.
 
 Buffered training is implemented for the standalone decision tree.
 Batch `fit` trains immediately on all supplied rows. `partial_fit` copies
 incoming chunks and trains once on the entire pending buffer when its
 sample count reaches or exceeds `buffer_size`.
 
-Incremental preprocessing, statistics, metrics, Pipeline, StreamTrainer,
-streaming CSV integration and visualisation remain pending.
+Streaming metrics, Pipeline, StreamTrainer, streaming CSV integration
+and visualisation remain pending.
 
 ### Minimal example
 
@@ -376,6 +390,49 @@ preserved when combining signed and unsigned types. When feature dtype
 promotion requires floating storage, integer values outside that dtype's
 consecutive exact-integer range are conservatively rejected. Such a failure
 retains pending data; retrying without resolving the cause still fails.
+
+### Incremental preprocessing and descriptive statistics
+
+Import these components from `numcompute_stream`.
+
+| Component | Public methods | Behaviour |
+| --- | --- | --- |
+| StandardScaler | fit, partial_fit, transform, fit_transform | Cumulative per-feature observed mean and population variance |
+| Imputer | fit, partial_fit, transform, fit_transform | Observed-mean or constant filling; finite fallback for unobserved columns |
+| OneHotEncoder | fit, partial_fit, transform, fit_transform | Incremental categories with unknown-value ignore/error policies |
+| StreamingStats | update_stats, result, quantile, histogram, reset | Cumulative moments, exact global quantiles and optional fixed-edge histograms |
+
+Preprocessor fit resets learning; partial_fit accumulates observations.
+Transforms do not learn. Numeric NaN is ignored when estimating moments.
+StandardScaler retains NaN during transformation and uses scale 1 for
+constant or unobserved columns; Imputer supplies missing-value filling.
+
+OneHotEncoder keeps existing category indices within each feature.
+Expanding an earlier feature can shift later output blocks. None and
+numeric NaN share a missing category, distinct from ordinary strings.
+Dense output memory and category storage grow with data dimensions and
+new categories.
+
+StreamingStats.update_stats is an instance method. result returns
+independent count, mean and population variance arrays plus total rows.
+quantile uses complete retained valid history since reset, with linear
+interpolation; its memory usage is not constant.
+Optional bin_edges are fixed and shared across features. Histogram bins
+include the final right endpoint and exclude NaN/out-of-range values.
+reset clears learning and history while retaining configured bin edges.
+
+Numeric statistics and imputation use float64 and retain finite-precision
+and overflow limits. These APIs do not promise arbitrary extreme-number
+support.
+
+Automated integration tests explicitly compose preprocessing and trees
+through component APIs. Automatic Pipeline buffering, paired snapshot publication
+and external-transformer interoperability remain future work. Updating a
+preprocessor used by an existing tree can invalidate its input mapping.
+
+Verified full regression: 708 tests passed, comprising 497 original
+tests and 211 streaming-package tests. See
+`docs/assignment-2.2-testing.md` for commands and recorded results.
 
 ### Tests
 
