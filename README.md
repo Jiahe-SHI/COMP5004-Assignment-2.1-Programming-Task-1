@@ -301,7 +301,11 @@ Batch `fit` trains immediately on all supplied rows. `partial_fit` copies
 incoming chunks and trains once on the entire pending buffer when its
 sample count reaches or exceeds `buffer_size`.
 
-Pipeline, StreamTrainer, streaming CSV integration and visualisation
+Pipeline and StreamTrainer are implemented, including paired
+preprocessing/model publication, evaluation before learning, binary
+probability alignment, event logs and retained-array memory accounting.
+
+Streaming CSV integration, visualisation and the streaming demonstration
 remain pending.
 
 ### Minimal example
@@ -430,13 +434,16 @@ Numeric statistics and imputation use float64 and retain finite-precision
 and overflow limits. These APIs do not promise arbitrary extreme-number
 support.
 
-Automated integration tests explicitly compose preprocessing and trees
-through component APIs. Automatic Pipeline buffering, paired snapshot publication
-and external-transformer interoperability remain future work. Updating a
-preprocessor used by an existing tree can invalidate its input mapping.
+Pipeline rebuilds preprocessing and the decision tree together from each
+eligible raw-data buffer. It publishes the complete fitted chain only
+after successful training, preserving the previous prediction chain
+when candidate training fails. External incremental transformers are
+supported through compatible methods and an explicit clone_unfitted
+protocol.
 
-Verified full regression: 760 tests passed, comprising 497 original
-tests and 263 streaming-package tests. See
+Verified full regression: 836 tests passed in 0.836 seconds, comprising
+497 original tests and 339 streaming-package tests. This is a test
+execution measurement, not a performance benchmark. See
 `docs/assignment-2.2-testing.md` for commands and recorded results.
 
 ### Cumulative and rolling metrics
@@ -493,11 +500,15 @@ describes the current window; n_samples_seen and n_samples_seen_ describe
 all successful input since reset.
 
 AUC requires an explicit positive label and finite scores that increase
-towards that class. Select probability columns using the current tree's
-classes_; do not assume the positive class is column 1. Integration tests
-demonstrate zero positive probability when the positive class is absent
-from the tree. This alignment is explicit test composition, not an
-implemented StreamTrainer feature.
+towards that class. When supplying scores directly, select probability
+columns using the current tree's classes_; do not assume the positive
+class is column 1.
+
+StreamTrainer performs this alignment automatically when positive_label
+is configured. If the active model has no positive-class column, it
+uses zero positive probability. AUC is disabled when positive_label is
+None; enabled AUC is NaN when either class is missing from the evaluated
+data. Multiclass AUC is unsupported.
 
 Tied scores receive half credit. Missing either class yields NaN.
 Stateful AUC retains its first negative label until reset, including
@@ -517,6 +528,112 @@ Update temporaries also depend on incoming chunk size. AUC queries sort
 the retained data; these APIs do not promise constant-time updates or
 queries.
 
+### Buffered Pipeline and evaluation before learning
+
+Import the streaming Pipeline from numcompute_stream. It is separate
+from the original numcompute.pipeline.Pipeline.
+
+```python
+import numpy as np
+from numcompute_stream import (
+    DecisionTreeClassifier,
+    Imputer,
+    Pipeline,
+    StandardScaler,
+    StreamTrainer,
+)
+
+model = Pipeline([
+    ("impute", Imputer(strategy="mean")),
+    ("scale", StandardScaler()),
+    ("tree", DecisionTreeClassifier(
+        max_depth=2,
+        buffer_size=4,
+        random_state=42,
+    )),
+])
+trainer = StreamTrainer(model, window_size=4, positive_label=1)
+
+chunks = [
+    (np.array([[0.0], [1.0]]), np.array([0, 0])),
+    (np.array([[2.0], [3.0]]), np.array([1, 1])),
+    (np.array([[0.5], [2.5]]), np.array([0, 1])),
+]
+
+for X_chunk, y_chunk in chunks:
+    # Evaluate using only the previously published model.
+    record = trainer.score_chunk(X_chunk, y_chunk)
+    print(record["warm_up"], record["chunk_accuracy"])
+
+    # Learning is a separate operation.
+    trainer.fit_chunk(X_chunk, y_chunk)
+
+print(trainer.n_samples_scored_)       # 6, including warm-up
+print(trainer.n_samples_evaluated_)    # 2, excluding warm-up
+print(model.n_retrains_)              # 1
+print(model.n_samples_buffered_)       # 2
+print(trainer.metrics_result()["cumulative"]["accuracy"])  # 1.0
+```
+
+The first two chunks are warm-up scoring events. The second learning
+call reaches the four-row threshold and publishes the first fitted
+chain. The third chunk is evaluated before being added to the next
+training buffer. There is no automatic final-buffer flush.
+
+Pipeline owns the raw-data buffer and trains the candidate tree with
+fit. At each threshold, every preprocessing step is rebuilt from the
+whole pending buffer. Its learned statistics describe that buffer,
+rather than all historical observations. The active preprocessing
+chain and tree remain paired and frozen between successful fits.
+
+A failed candidate training attempt retains accepted pending data and
+the previous active chain. After resolving the cause, call
+trainer.retry_pending_fit() to retry learning without appending the
+chunk or scoring it again. Repeated successful score_chunk calls are
+counted as separate evaluation events; automatic deduplication and
+automatic score-before-fit ordering are not provided.
+
+Pipeline captures component configuration and creates fresh instances.
+External transformers must provide partial_fit, transform and
+clone_unfitted(). The clone must be a distinct instance of the same
+type, with equivalent configuration and independent, unfitted state.
+The external implementation is responsible for avoiding shared learned
+state and source mutation. Signature inspection supports X-only and
+compatible y arguments without retrying internal TypeError failures.
+
+Numeric pipelines may accept NaN before imputation. A pipeline beginning
+with the built-in OneHotEncoder accepts categorical input. Automatic
+routing of mixed numeric and categorical column groups is not provided.
+
+### Trainer logs and memory accounting
+
+trainer.logs_ returns independent copies of event records. Successful
+scoring calls and successful or failed learning calls are logged.
+Learning failures record their exception type and are re-raised.
+Failed scoring calls do not publish evaluation state or a log entry.
+
+score_seconds measures the scoring operation, including metric work.
+training_seconds measures the model update or retry call, including
+buffer handling and any triggered training. It is not an isolated
+tree-retraining time. Memory traversal and log insertion occur outside
+these timings.
+
+trainer.memory_result() reports reachable NumPy array nbytes for the
+model and evaluation state. buffer_array_bytes is a subset of that
+total, not an additional allocation. The same array object is counted
+once; distinct overlapping views are counted separately.
+
+This accounting excludes Python-object overhead, logs, temporary
+allocations, process RSS and peak memory. It does not measure total
+process memory. If log-time memory measurement fails, the event records
+that measurement as unavailable.
+
+Exact cumulative AUC retains all evaluated labels and scores, and
+candidate metric copies duplicate this history during scoring.
+Classification class tables and the event log can also grow. The
+trainer therefore does not promise bounded memory or constant-time
+updates.
+
 ### Tests
 
 Run from the repository root:
@@ -535,6 +652,7 @@ The second command includes both original and streaming-package tests.
 - Split-search temporary memory grows with sample, class and feature counts.
 - Feature subsampling may stop at a leaf when the selected subset has no
   useful split.
-- Performance benchmarks and end-to-end streaming evaluation remain pending.
+- In-memory streaming integration is tested. Streaming CSV integration,
+  visualisation, demonstration and performance benchmarks remain pending.
 
 See `docs/assignment-2.2-design.md` for detailed numerical policies.

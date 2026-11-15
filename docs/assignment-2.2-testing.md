@@ -4,10 +4,16 @@
 
 Implemented functionality includes shared validation, batch and buffered
 decision trees, incremental preprocessing, StreamingStats, cumulative
-and rolling classification metrics, and cumulative and rolling binary AUC.
+and rolling classification metrics, cumulative and rolling binary AUC,
+Pipeline and StreamTrainer.
 
-Pipeline, StreamTrainer, streaming CSV integration and visualisation
-remain pending.
+Pipeline and trainer coverage includes paired preprocessing/model
+publication, external-transformer interoperability, evaluation before
+learning, automatic binary probability alignment, event logs and scoped
+NumPy-array memory accounting.
+
+Streaming CSV integration, visualisation, the streaming demonstration
+and performance benchmarks remain pending.
 
 Verification sections below are chronological checkpoints. Statements
 such as "pending" or "not yet rerun" inside earlier entries describe the
@@ -15,8 +21,11 @@ state at that checkpoint, not the current implementation.
 
 The buffered-tree work was committed and pushed as 5a4d6cc.
 Incremental preprocessing and statistics were committed and pushed as
-be0694e. The current development branch is Jiahe-assignment-2.2.
-The metrics changes described below have not yet been committed.
+be0694e. Cumulative and rolling metrics were committed and pushed as
+25d2a8b. The current development branch is Jiahe-assignment-2.2.
+
+Pipeline and StreamTrainer code verification has passed. Documentation
+review, staging, commit and push for these changes remain pending.
 
 ## Environment
 
@@ -409,3 +418,125 @@ git diff --check
 ```
 
 Metrics documentation review, staging, commit and push are pending.
+
+## Pipeline and StreamTrainer verification
+
+Implemented Pipeline raw-data buffering and paired publication of fresh
+preprocessing/tree candidates. Implemented StreamTrainer evaluation before
+learning, cumulative and rolling metrics, binary probability alignment,
+event logging and retained-array memory accounting.
+
+Pipeline and StreamTrainer are exported from numcompute_stream.
+Tests use unittest and NumPy without an external machine-learning library.
+
+### Added coverage
+
+| File | Tests | Focus |
+| --- | ---: | --- |
+| test_pipeline_components.py | 5 | Component validation and configuration capture |
+| test_pipeline_buffer.py | 8 | Buffer thresholds, ownership and training lifecycle |
+| test_pipeline_snapshots.py | 8 | Paired preprocessing/tree state and failure recovery |
+| test_pipeline_dispatch.py | 6 | Compatible fitting signatures and exception propagation |
+| test_pipeline_external.py | 8 | External clone protocol and transformer interoperability |
+| test_pipeline_boundaries.py | 8 | Input boundaries, schema and numerical handling |
+| test_stream_trainer.py | 8 | Warm-up, evaluation, learning and metric state |
+| test_stream_trainer_auc.py | 6 | Positive probability alignment and binary AUC |
+| test_stream_trainer_logs.py | 8 | Event records, timing and failed learning |
+| test_stream_trainer_memory.py | 7 | Array accounting, ownership and measurement failures |
+| test_stream_integration.py | 4 | Unequal chunks, changing categories, retries and independent trainers |
+| Total | 76 | |
+
+subTest cases do not count as additional test methods.
+
+### Recorded user-checkout result
+
+After correcting the categorical integration test expectation, the full
+original-plus-streaming regression completed successfully:
+
+| Check | Tests | Time | Result |
+| --- | ---: | ---: | --- |
+| Full original-plus-streaming regression | 836 | 0.836 s | OK |
+
+The suite comprises 497 original tests and 339 streaming-package tests.
+The previous streaming suite contained 263 tests; this work adds 76.
+
+The full regression includes all four new streaming integration tests.
+Its execution time is not a performance benchmark.
+
+git diff --check reported only LF-to-CRLF conversion warnings at the
+code-verification checkpoint. No whitespace errors were reported.
+
+### Integration evidence
+
+- Unequal numeric chunks exercise warm-up, threshold overshoot, missing
+  value preprocessing and multiple model publications.
+- Recorded predictions from before learning provide the classification
+  reference; a small independent pairwise calculation provides the AUC
+  reference.
+- Changing categorical data exercises paired encoder/tree replacement
+  and evaluation against the previously published representation.
+- A simulated training failure preserves accepted buffer data and the
+  active model. Retrying training does not repeat successful scoring.
+- Separate trainer instances retain independent model, evaluation and
+  log state.
+- External-transformer tests exercise minimal fitting signatures and
+  internal TypeError propagation without a second fitting call.
+- Logging and memory tests verify accounting behaviour, rather than
+  claiming process-wide memory or benchmark performance.
+
+### Debugging evidence
+
+The changing-category integration test initially expected cumulative
+classes [0, 2, 1, 3], while the implementation returned [0, 1, 2, 3].
+
+The first evaluated update introduced true labels 0 and 2 together with
+predicted label 1. Newly observed labels from truth and predictions are
+combined and appended in sorted order within that update. Therefore,
+[0, 1, 2, 3] is the correct accumulated class order.
+
+Only the test expectation was corrected. No classification metric
+algorithm change was required. The subsequent full regression passed.
+
+### Boundaries and limitations
+
+- The caller must score each chunk before learning it; ordering is not
+  automatically enforced.
+- Repeated successful score_chunk calls count as separate evaluations.
+  There is no automatic deduplication.
+- Warm-up rows count as received scoring rows but are excluded from
+  evaluated-sample denominators.
+- Pipeline preprocessing is rebuilt from each eligible training buffer,
+  rather than accumulating statistics across all historical buffers.
+- External clone independence and non-learning transform behaviour are
+  protocol requirements; identity and shape checks cannot prove them.
+- A training failure after chunk acceptance retains that chunk. Retry
+  learning without submitting the same chunk again.
+- Buffer size is a trigger, not a hard memory cap. Partial final buffers
+  are not automatically flushed.
+- training_seconds includes buffering and any triggered training; it is
+  not an isolated tree-building measurement.
+- Memory accounting measures reachable NumPy array nbytes, excluding
+  Python-object overhead, logs, temporaries, process RSS and peak memory.
+- Exact cumulative AUC retains history, and candidate metric copies
+  duplicate that history during scoring. Event logs and class tables
+  can also grow.
+- Streaming CSV integration, visualisation, the streaming demonstration,
+  performance benchmarks and long-stream memory measurements remain
+  pending.
+
+### Reproduction
+
+Run from the repository root:
+
+```powershell
+python -W error -m unittest tests.stream.test_stream_integration -v
+python -m unittest discover -s tests/stream -t . -v
+python -m unittest discover -s tests -v
+git diff --check
+```
+
+These commands describe how to reproduce the checks. The recorded timing
+above belongs to the verified full-regression run.
+
+Documentation review, staging, commit and push for Pipeline and
+StreamTrainer remain pending.

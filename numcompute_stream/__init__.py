@@ -2,10 +2,11 @@
 
 Available components include batch and buffered decision trees,
 incremental numeric and categorical preprocessing, streaming descriptive
-statistics, cumulative and rolling classification metrics, and
-cumulative and rolling binary ROC AUC.
-Pipeline, StreamTrainer, CSV integration and visualisation remain
-under development.
+statistics, cumulative and rolling classification metrics, binary ROC AUC,
+a buffered Pipeline with paired preprocessing/model snapshots, and
+StreamTrainer evaluation, learning, event logs and array-storage accounting.
+
+CSV integration and visualisation remain under development.
 """
 
 from .tree import DecisionTreeClassifier
@@ -19,6 +20,8 @@ from .metrics import (
     RollingClassificationMetrics,
     RollingROCAUC,
 )
+from .pipeline import Pipeline
+from .stream import StreamTrainer
 
 __all__ = [
     "DecisionTreeClassifier",
@@ -32,4 +35,6 @@ __all__ = [
     "StreamingROCAUC",
     "RollingClassificationMetrics",
     "RollingROCAUC",
+    "Pipeline",
+    "StreamTrainer",
 ]

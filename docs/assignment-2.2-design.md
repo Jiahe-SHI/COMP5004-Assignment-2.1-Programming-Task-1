@@ -1,13 +1,16 @@
 # Assignment 2.2 - Design contract
 
 Batch and standalone buffered trees, incremental preprocessing,
-StreamingStats, cumulative and rolling classification metrics, and binary
-ROC AUC are implemented and tested.
+StreamingStats, cumulative and rolling classification metrics, binary
+ROC AUC, Pipeline and StreamTrainer are implemented and tested.
 
-Pipeline and StreamTrainer sections describe planned behaviour.
-Cross-component tests explicitly compose components and verify independent
-snapshots and probability-column alignment. Automatic Pipeline coordination
-and StreamTrainer evaluation remain unimplemented.
+Pipeline coordinates raw-data buffering and paired publication of
+preprocessing and tree state. StreamTrainer separates evaluation from
+learning and provides probability alignment, event logs and scoped
+NumPy-array memory accounting.
+
+Streaming CSV integration, visualisation, the streaming demonstration
+and performance benchmarks remain pending.
 
 ## Inputs and state
 
@@ -66,11 +69,19 @@ and StreamTrainer evaluation remain unimplemented.
 
 ## Pipeline buffering and preprocessing scope
 
-The Pipeline is the sole raw-data buffer owner when a tree is composed.
-It uses the final tree's buffer_size and invokes candidate_tree.fit at
-the threshold, rather than buffering the same data through tree.partial_fit.
+Pipeline accepts uniquely named steps with distinct component instances.
+The final component must be the built-in DecisionTreeClassifier.
+Intermediate components must provide callable partial_fit and transform.
+
+The constructor captures independent unfitted configuration templates.
+Training does not fit the original supplied component instances.
+
+Pipeline is the sole raw-data buffer owner when a tree is composed.
+It uses the captured final tree's buffer_size and invokes candidate_tree.fit,
+rather than buffering the same data through tree.partial_fit.
 
 At retraining:
+
 1. Create a fresh, unfitted candidate preprocessing chain.
 2. On the entire raw buffer, call partial_fit then transform for each step.
 3. Fit a candidate tree on the final representation.
@@ -82,17 +93,57 @@ Pipeline preprocessing is rebuilt for each retraining buffer: its
 statistics describe that training window, not all historical observations.
 The active prediction chain remains frozen between retraining events.
 
-This deliberate scope difference prevents downstream accumulators from
-mixing changing upstream representations.
+This scope difference prevents downstream accumulators from mixing
+changing upstream representations.
 
-External incremental transformers need compatible partial_fit/transform
-methods and an explicit way to create an unfitted independent instance.
-The reset/configuration-copy protocol must be specified before external
-component integration; arbitrary objects are not assumed safely cloneable.
+### Inputs and transformer interoperability
 
-Inspect method signatures before dispatch. Support X-only fitting methods
-and compatible y arguments. Never catch an internal TypeError and retry
-as if it were a signature mismatch.
+- Numeric raw input may contain NaN, but not infinity. The final tree
+  still requires finite numeric features.
+- A pipeline beginning with the built-in OneHotEncoder accepts categorical
+  raw input and preserves per-feature string/numeric category kinds.
+- Automatic routing of mixed numeric and categorical column groups is
+  not implemented.
+- Raw feature count and label family must remain compatible across
+  partial_fit calls. Successful direct fit may establish a new schema.
+- External transformers must implement clone_unfitted(), returning a
+  distinct instance of the same type with equivalent configuration.
+- The external implementation must ensure that the clone is unfitted,
+  does not share learned mutable state and does not mutate its source.
+  Identity/type checks cannot prove these semantic guarantees.
+- Signature inspection supports X-only partial_fit methods and compatible
+  positional-only, keyword or **kwargs handling of y.
+- Internal TypeError exceptions propagate without a second fitting call.
+- Transformer calls receive copied arrays. Outputs must be two-dimensional,
+  preserve row count and contain at least one feature; outputs are copied.
+- External transform methods must preserve row order and must not learn.
+  Shape checks alone cannot verify those requirements.
+
+### State and failure recovery
+
+- partial_fit validates and copies a chunk before accepting it.
+- At size >= buffer_size, train once on the entire pending buffer,
+  including any threshold overshoot.
+- Validation failure rejects the chunk. Candidate-training failure after
+  acceptance retains the chunk and the previous active chain.
+- retry_pending_fit retries eligible pending data without appending.
+  Empty or below-threshold buffers are not trained.
+- There is no automatic final-buffer flush.
+- Direct fit trains immediately. Success replaces the active chain and
+  clears pending data; failure preserves the previous state.
+- Before the first successful fit, prediction raises RuntimeError.
+- n_samples_buffered_ reports pending raw rows; n_samples_fit_ reports
+  the latest successful training size.
+- n_features_in_ describes raw input features, not encoded feature width.
+- classes_ describes the active tree and returns an independent copy.
+- n_retrains_ counts successful buffered publications, including retries.
+  Direct fit does not increment or reset it.
+- model_version_ counts every successful publication, including direct fit.
+  Failed training and prediction do not advance these counters.
+- Numeric buffer concatenation conservatively rejects potentially lossy
+  integer-to-floating promotion. Retrying cannot resolve incompatible
+  data without addressing its cause.
+- buffer_size is a training trigger, not a strict memory limit.
 
 ## Statistics and metrics
 
@@ -116,22 +167,92 @@ as if it were a signature mismatch.
 
 ## StreamTrainer
 
-- score_chunk predicts and updates metrics; it does not train.
-- fit_chunk learns; it does not update prediction metrics.
-- Evaluate each chunk before learning it.
-- Warm-up samples are excluded from evaluation denominators.
-- Logs distinguish chunk, cumulative and rolling metrics, buffer counts,
-  retraining events and timing.
-- Memory measurements state their scope; array bytes are not process RSS.
+StreamTrainer accepts a built-in DecisionTreeClassifier or Pipeline.
+It retains the supplied model by reference; learning updates that model.
+Concurrent or external mutation is outside the coordination contract.
+
+### Evaluation and learning
+
+- score_chunk validates input, predicts and updates evaluation metrics.
+  It does not train the model.
+- fit_chunk delegates to model.partial_fit without updating evaluation
+  metrics.
+- Call score_chunk before fit_chunk for each incoming chunk. This ordering
+  is the caller's responsibility and is not automatically enforced.
+- Before a model is fitted, scoring records a warm-up event without
+  predictions or metric updates.
+- n_chunks_scored_ and n_samples_scored_ include successful warm-up calls.
+  n_samples_evaluated_ excludes warm-up rows.
+- Repeated successful score_chunk calls are separate evaluation events.
+  There is no automatic deduplication.
+- Candidate metric copies are updated before coordinated publication.
+  Failed scoring preserves previous evaluation state and adds no log.
+- retry_pending_fit retries learning without appending or scoring again.
+  A training failure does not undo an earlier successful scoring event.
+- metrics_result returns cumulative and rolling classification results,
+  plus cumulative and rolling AUC results when enabled.
+
+### Binary probability alignment
+
+- positive_label=None disables AUC and reports None for AUC results.
+- With an explicit positive_label, scores use the active model's matching
+  classes_ probability column, not a fixed column index.
+- If the positive class is absent from the active model, scores are zero.
+- Enabled AUC is NaN when either class is absent from evaluated data.
+- Binary label compatibility is checked using model classes and true
+  labels; stateful AUC also retains its established negative label.
+- Multiclass classification is supported when AUC is disabled.
+  Multiclass AUC is unsupported.
+
+### Event logs and timing
+
+- logs_ returns independent copies of retained event records.
+- Successful scoring records warm-up status, chunk/cumulative/rolling
+  accuracy, optional AUC, scoring counts and model version.
+- Successful and failed learning calls record buffer state, retraining
+  count, model version, elapsed time and success status.
+- Learning failures record the exception type and re-raise the exception.
+- A retry is a separate learning event, not another scoring event.
+- score_seconds covers scoring and metric work.
+- training_seconds covers the model update or retry, including buffering
+  and any triggered training. It is not isolated tree-building time.
+- Memory traversal and log insertion are outside these timed regions.
+- Model operations performed directly outside the trainer are not logged.
+
+### Memory accounting and computational limits
+
+- memory_result reports reachable NumPy array nbytes for model and
+  evaluation state using the reachable_ndarray_nbytes method.
+- buffer_array_bytes is the pending-buffer subset of the total.
+- The same array object is counted once. Distinct overlapping views are
+  counted separately by their logical nbytes.
+- Array base storage and objects referenced inside object arrays are not
+  recursively measured through those arrays.
+- Python-object overhead, logs, temporary allocations, native allocations,
+  process RSS and peak memory are excluded.
+- log_events reports event count, not the memory occupied by logs.
+- Log-time measurement failures are recorded as unavailable and do not
+  replace the original training exception.
+- Exact cumulative AUC retains full evaluation history. Candidate metric
+  deepcopy duplicates that history during scoring.
+- Classification class tables and event logs may grow over time.
+- Memory traversal and metric queries also require work; neither bounded
+  total memory nor constant-time updates are promised.
 
 ## Verification scope
 
-The checklist below spans implemented components and future integration.
 Current tests cover independent numerical references, unequal chunks,
-component snapshots, categorical expansion, standalone tree recovery,
-rolling-window eviction, tied AUC scores and probability-column alignment.
-External-transformer interoperability and automatic Pipeline/StreamTrainer
-coordination remain pending.
+component snapshots, categorical expansion, standalone and Pipeline
+training recovery, rolling-window eviction, tied AUC scores and automatic
+probability-column alignment.
+
+External-transformer tests cover clone validation, compatible method
+signatures, copied inputs and internal exception propagation. Trainer
+integration tests cover evaluation before learning, changing categories,
+retry without repeated scoring and independent trainer instances.
+
+Timing and memory tests verify logging and accounting behaviour.
+They do not establish performance or long-stream memory bounds.
 
 - Vectorised versus independent reference outputs.
 - Unequal chunk sizes versus full-batch statistics.
@@ -203,7 +324,7 @@ coordination remain pending.
 - The package exports DecisionTreeClassifier with batch fitting, buffered
   partial_fit and explicit retry_pending_fit.
 
-  ## Buffered tree state and recovery policy (2026-11-13)
+## Buffered tree state and recovery policy (2026-11-13)
 
 - Chunks are validated and copied before buffer publication. Numeric feature
   count and integer/string label family must match pending data and any
@@ -236,15 +357,15 @@ coordination remain pending.
   probability columns remain unchanged until a new model is published.
 - buffer_size is a trigger, not a memory cap. Pending chunks, concatenated
   training arrays and tree-building temporaries can coexist.
-- Planned Pipeline composition owns its own buffer and invokes tree.fit;
-  its future retraining logs must not treat the standalone tree's buffered
-  counter as a Pipeline-wide event counter.
+- Pipeline owns its own buffer and invokes candidate_tree.fit.
+  Pipeline maintains its own publication and buffered-retraining counters;
+  StreamTrainer reads the outer model's counters.
 
 ## Incremental one-hot encoding contract
 
 The following rules are implemented by OneHotEncoder and covered by
-22 dedicated tests. Pipeline encoder/model snapshot coordination remains
-planned; independent encoder deepcopy behaviour has been tested.
+22 dedicated tests. Additional Pipeline tests verify paired encoder/model
+publication; independent encoder deepcopy behaviour is also tested.
 
 - fit resets learned categories; partial_fit extends them.
 - Existing category indices within each input feature remain unchanged.
@@ -271,9 +392,9 @@ planned; independent encoder deepcopy behaviour has been tested.
 - Input validation and candidate category construction must complete
   before publishing updated learned state.
 
-The future Pipeline must preserve a matching encoder/model snapshot.
-An updated encoder must not be paired directly with a tree trained on
-an earlier output layout.
+Pipeline preserves a matching encoder/model snapshot by rebuilding and
+publishing both together. An independently updated encoder must not be
+paired directly with a tree trained on an earlier output layout.
 
 Input category types:
 
@@ -414,9 +535,9 @@ Binary AUC:
   Array-like inputs follow NumPy dtype inference.
 - AUC is exact over retained scores subject to representation and arithmetic
   limits. Multiclass AUC is unsupported.
-- Probability columns must be aligned using the active tree's classes_.
-  Tests explicitly use zero positive probability when that class is absent.
-  Automatic trainer-level alignment remains future work.
+- Probability columns must be aligned using the active model's classes_.
+  StreamTrainer performs this alignment automatically and uses zero
+  positive probability when the positive class is absent.
 
 Memory and work:
 
