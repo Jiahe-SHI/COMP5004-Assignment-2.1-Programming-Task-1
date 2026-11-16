@@ -1,0 +1,92 @@
+{
+  "metadata": {
+    "timestamp_utc": "2026-11-16T11:03:53.179265+00:00",
+    "python": "3.12.6 (tags/v3.12.6:a4a2d2b, Sep  6 2024, 20:11:23) [MSC v.1940 64 bit (AMD64)]",
+    "numpy": "2.5.5",
+    "platform": "Windows-11-10.0.26200-SP0",
+    "git_head": "f66da3e805085539bd79d9e6000eee82beead521",
+    "git_status": "?? benchmark/check_stream_state_growth.py\n?? benchmark/results/stream_buffers_formal_20261116T110038_916524Z/\n?? benchmark/results/stream_buffers_smoke_20261116T105758_708635Z/\n?? benchmark/results/stream_vectorization_formal_20261116T104755_980073Z/\n?? benchmark/results/stream_vectorization_smoke_20261116T103919_707262Z/\n?? benchmark/run_stream_buffers.py\n?? benchmark/run_stream_vectorization.py\n?? benchmark/stream_references.py\n?? tests/stream/test_benchmark_confusion_reference.py\n?? tests/stream/test_benchmark_split_reference.py",
+    "source_sha256": {
+      "numcompute_stream/__init__.py": "57250d638b9735a2761fdff2eea6f747c69188179ff11fc88c53586ccc00a285",
+      "numcompute_stream/_categorical.py": "0f19cc439f6c6b5a504ba9f14e3a14dd4267aa640868994e0c27652e127b441e",
+      "numcompute_stream/_memory.py": "0a7333e972e2f1f37183d434f7521bd45ac42f01dd5da9e71e04ae94b4f92493",
+      "numcompute_stream/_moments.py": "6f5cf800611e315a1ffe84a298589a8e7bb9cf9722d766af038663195fb23a35",
+      "numcompute_stream/_validation.py": "a8a604ae4c450d271da2af556d4dbe0a75603e59b7d4c5e082fc6ac1302565b4",
+      "numcompute_stream/io.py": "c4b8b7899d463715c4fa949972cff7245e5e480ef80638289252bd9871e80922",
+      "numcompute_stream/metrics.py": "b9e4bf07fdf984c1b6e238722f3494e2f6f86d159e5630c516946b3628c405dd",
+      "numcompute_stream/pipeline.py": "1ef9638395fae2cad9ed65c0efe7be91138f9349a49610ca126d36d5fdc8030c",
+      "numcompute_stream/preprocessing.py": "6924b1d26055e17c72e4fc90a6ba0c8bab4807538050e562b1a78c1c6c3fb6c8",
+      "numcompute_stream/stats.py": "7fe9209e99886a2b4901a12c952b704a9ce6bf23ecd2506f9b57492f1bd9d611",
+      "numcompute_stream/stream.py": "bf8f8af9d3bee28be72219ad83af1d824f0d1bb39561b918c32f67c7229c2029",
+      "numcompute_stream/tree.py": "5461f9dff353a6d5af3bd5a2282caabbbdd15f612d65bf0e783015791163af5d",
+      "numcompute_stream/visualise.py": "1d8808f494205a72f2fb8f4ff5282fa48fe018c2c7bd63ab86a0c5453123726e",
+      "benchmark/check_stream_state_growth.py": "0593cab1ff2400087adb67ad8464cd2c727f2118769a4a2de7639260193842f7",
+      "benchmark/run_stream_vectorization.py": "55dcac7a97433fd03ba7f69b1ea181e24d3f00357137e5b06ad3849aaf9e94c0",
+      "benchmark/stream_references.py": "4a446ae1b948a8e9e09c0da947aa5cea4b89cefb92cc26ef00779d83bc054d41"
+    },
+    "seed": 2026,
+    "total_samples": 50000,
+    "chunk_size": 100,
+    "window_size": 500,
+    "checkpoints": [
+      1000,
+      10000,
+      25000,
+      50000
+    ],
+    "data": "Generated per chunk: three standard-normal features, alternating binary labels, score=X[:,0]+0.75*y, predicted label=int(score>0.375). No missing features.",
+    "memory_method": "reachable_ndarray_nbytes",
+    "scope": "Retained arrays reachable from each component separately. Excludes Python object overhead, object-array referents, temporary allocations, input chunks and output records. Not process RAM, peak memory or a speed benchmark.",
+    "final_feature_medians": [
+      -0.0005728649873935967,
+      0.00396183699165789,
+      0.0019291469992322938
+    ]
+  },
+  "checkpoints": [
+    {
+      "samples_seen": 1000,
+      "confusion_array_bytes": 64,
+      "cumulative_auc_array_bytes": 16000,
+      "rolling_auc_array_bytes": 8000,
+      "stats_array_bytes": 24072,
+      "cumulative_auc_retained_samples": 1000,
+      "rolling_auc_retained_samples": 500,
+      "cumulative_auc": 0.696752,
+      "rolling_auc": 0.697216
+    },
+    {
+      "samples_seen": 10000,
+      "confusion_array_bytes": 64,
+      "cumulative_auc_array_bytes": 160000,
+      "rolling_auc_array_bytes": 8000,
+      "stats_array_bytes": 240072,
+      "cumulative_auc_retained_samples": 10000,
+      "rolling_auc_retained_samples": 500,
+      "cumulative_auc": 0.71036648,
+      "rolling_auc": 0.731104
+    },
+    {
+      "samples_seen": 25000,
+      "confusion_array_bytes": 64,
+      "cumulative_auc_array_bytes": 400000,
+      "rolling_auc_array_bytes": 8000,
+      "stats_array_bytes": 600072,
+      "cumulative_auc_retained_samples": 25000,
+      "rolling_auc_retained_samples": 500,
+      "cumulative_auc": 0.7062316608,
+      "rolling_auc": 0.70768
+    },
+    {
+      "samples_seen": 50000,
+      "confusion_array_bytes": 64,
+      "cumulative_auc_array_bytes": 800000,
+      "rolling_auc_array_bytes": 8000,
+      "stats_array_bytes": 1200072,
+      "cumulative_auc_retained_samples": 50000,
+      "rolling_auc_retained_samples": 500,
+      "cumulative_auc": 0.705265336,
+      "rolling_auc": 0.69264
+    }
+  ]
+}

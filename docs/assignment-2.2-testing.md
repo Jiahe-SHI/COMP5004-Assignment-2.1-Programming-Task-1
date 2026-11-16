@@ -728,3 +728,66 @@ restart the kernel, run all cells and save the executed notebook.
 - Exact quantiles, cumulative AUC and logs can grow with stream length.
 - Staging, commit and push for the CSV, plotting and demonstration changes
   remain pending at this checkpoint.
+
+## Benchmark and long-stream verification — 2026-11-16
+
+This checkpoint supersedes the earlier pending benchmark and long-stream
+items. Earlier checkpoint statements remain as historical records.
+The CSV, plotting and demonstration work was subsequently committed
+and pushed as f66da3e.
+
+### Reference correctness and regression
+
+Added reference comparison modules:
+
+- test_benchmark_confusion_reference.py: 5 tests.
+- test_benchmark_split_reference.py: 6 tests.
+
+Both modules passed together: 11 tests in 0.285 seconds.
+
+Regression commands:
+
+```powershell
+python -W error -m unittest discover -s tests/stream -t . -q
+python -m unittest discover -s tests -q
+```
+
+Observed results:
+
+- Streaming suite: 406 tests in 1.409 seconds, OK.
+- Complete suite: 903 tests in 1.680 seconds, OK.
+- Complete count: 497 original tests plus 406 streaming tests.
+
+Temporary benchmark-runner output during the complete suite belongs
+to existing tests; it is not another formal experiment.
+
+### Executable experiment checks
+
+- Vectorisation benchmark: nine formal equivalence checks passed;
+  seven timing repetitions per implementation and case.
+- Buffer benchmark: three configurations, seven runs each; historical
+  predictions and event structure reproduced for each configuration.
+- Retained-state check: 50,000 rows; fixed-class confusion storage and
+  rolling AUC storage remained stable at sampled checkpoints, while
+  cumulative AUC and statistics history grew.
+- Integrated stream: 20,037 input rows, 19,737 evaluated rows,
+  66 retrainings, 237 buffered tail rows and 403 log events.
+- Invalid Inf inputs were rejected for scoring and training without
+  changing model/evaluation state or probe predictions; valid processing
+  continued afterward.
+- Three summary PNGs were generated from recorded results and passed
+  file-signature checks and visual inspection.
+
+These experiment-script assertions are additional executable checks,
+not additional unittest cases.
+
+Detailed methods, exact result locations, limitations and figures:
+[Streaming benchmarks](assignment-2.2-benchmarks.md).
+
+### Remaining work at this checkpoint
+
+- Review and commit the benchmark, results and documentation changes.
+- Prepare final report/video and verify final submission requirements.
+- Complete clean-checkout reproduction and final access/link checks.
+
+No benchmark commit or push is claimed at this checkpoint.

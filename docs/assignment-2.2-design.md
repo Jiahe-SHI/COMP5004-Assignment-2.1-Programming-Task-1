@@ -680,3 +680,26 @@ Prediction plots:
   outside the original trainer's reported array-memory scope.
 - Demonstration accuracy and timings do not replace formal benchmarks
   or establish real-world predictive performance.
+
+## Benchmark measurement contracts
+
+- Loop references are benchmark-only implementations; production APIs
+  and model behaviour are unchanged.
+- Split comparisons use the same observed-sample partitions, criteria
+  and global gain-tie tolerance of 1e-12.
+- Confusion timing compares complete batch operations, including fresh
+  streaming metric construction and result retrieval; it does not
+  isolate the counting kernel.
+- Buffer comparisons fix data order, preprocessing, tree parameters
+  and chunk size. Accuracy is computed from sample counts, with warm-up
+  excluded and a common evaluation interval reported separately.
+- A retraining duration covers the entire triggering
+  Pipeline.partial_fit call, including preprocessing and publication.
+- Memory diagnostics count reachable ndarray storage. Python overhead,
+  temporary allocations and process peak RAM are outside this measure.
+- Exact cumulative AUC, exact-quantile history and event logs can grow.
+  A bounded training buffer does not make the whole framework bounded.
+- Final partial buffers are retained; experiments do not force a flush.
+
+Measured evidence and reproduction:
+[Streaming benchmarks](assignment-2.2-benchmarks.md).

@@ -762,6 +762,9 @@ Run from the repository root:
 ```
 
 The second command includes both original and streaming-package tests.
+Latest verified regression: 406 streaming tests and 903 total tests
+(497 original tests plus 406 streaming tests). The streaming suite
+also passed with warnings treated as errors.
 
 ### Current limitations
 
@@ -772,8 +775,38 @@ The second command includes both original and streaming-package tests.
   useful split.
 - In-memory and CSV streaming integration are tested; the streaming
   notebook and three plotting interfaces are verified.
-- Assignment 2.2 vectorisation benchmarks, systematic buffer-size timing
-  comparisons and long-stream memory experiments remain pending.
+- Formal vectorisation and buffer-size benchmarks, retained-state growth
+  checks and a longer integrated stream have been verified. Results are
+  specific to the recorded inputs and environment.
+- Cumulative AUC, exact-quantile history and event logs grow with stream
+  length. Array-storage diagnostics are not process RAM or peak memory.
 - The demo uses synthetic data and does not establish real-world accuracy.
 
 See `docs/assignment-2.2-design.md` for detailed numerical policies.
+
+### Streaming benchmarks and long-stream checks
+
+Run from the repository root with the project environment active:
+
+```powershell
+python -W error -m benchmark.run_stream_vectorization
+python -W error -m benchmark.run_stream_buffers
+python -W error -m benchmark.check_stream_state_growth
+python -W error -m benchmark.check_stream_long_run
+python -W error -m benchmark.plot_stream_results
+```
+
+The two timing scripts support --quick for smoke checks. Formal runs
+save raw timings, configuration and source metadata in timestamped
+directories. The plotting script uses explicitly selected recorded
+results; it does not automatically plot the latest run.
+
+See [benchmark methods, results and figures](docs/assignment-2.2-benchmarks.md).
+
+Measured split-search speedups ranged from 2.309x to 7.473x.
+The complete streaming confusion-matrix path was slower than the
+batch loop reference at all measured sizes; these results are retained.
+
+Buffer sizes 100, 300 and 600 were compared on the same prequential
+evaluation interval. Retraining timings include the entire triggering
+Pipeline.partial_fit call, not isolated tree fitting.

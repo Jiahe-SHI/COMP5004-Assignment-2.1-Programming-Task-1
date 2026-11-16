@@ -1,0 +1,23 @@
+{
+  "sources": {
+    "vectorization": {
+      "path": "benchmark/results/stream_vectorization_formal_20261116T104755_980073Z/raw_results.json",
+      "sha256": "ecd5fc17eb921a93c8fbf852483381bd28c6ade4331f1c465283ce6e3605ff45"
+    },
+    "buffers": {
+      "path": "benchmark/results/stream_buffers_formal_20261116T110038_916524Z/raw_results.json",
+      "sha256": "deadc752f4f899ea6af4b3fb61d453d6e77e829adb6e3e1255889e384f76a11f"
+    },
+    "growth": {
+      "path": "benchmark/results/stream_state_growth_20261116T110353_331858Z/raw_results.json",
+      "sha256": "56e937232a31f1bef38bcf005840b12e4ef92b7cbaba8bf4cedd653a1d370976"
+    }
+  },
+  "plot_script_sha256": "6bde0a6a93b4d84f6d03a467783a47396ccd6a24ff800bdf3fd4f8e8216e7960",
+  "figures": [
+    "benchmark/results/stream_summary_figures/vectorization_speedups.png",
+    "benchmark/results/stream_summary_figures/buffer_comparison.png",
+    "benchmark/results/stream_summary_figures/retained_array_growth.png"
+  ],
+  "note": "Figures use recorded results; benchmarks were not rerun. Repeated plotting overwrites these derived outputs."
+}

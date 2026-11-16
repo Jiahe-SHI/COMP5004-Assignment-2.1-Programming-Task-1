@@ -1,0 +1,192 @@
+{
+  "metadata": {
+    "timestamp_utc": "2026-11-16T11:09:52.587730+00:00",
+    "python": "3.12.6 (tags/v3.12.6:a4a2d2b, Sep  6 2024, 20:11:23) [MSC v.1940 64 bit (AMD64)]",
+    "numpy": "2.5.5",
+    "platform": "Windows-11-10.0.26200-SP0",
+    "git_head": "f66da3e805085539bd79d9e6000eee82beead521",
+    "git_status": "?? benchmark/check_stream_long_run.py\n?? benchmark/check_stream_state_growth.py\n?? benchmark/results/stream_buffers_formal_20261116T110038_916524Z/\n?? benchmark/results/stream_buffers_smoke_20261116T105758_708635Z/\n?? benchmark/results/stream_state_growth_20261116T110353_331858Z/\n?? benchmark/results/stream_vectorization_formal_20261116T104755_980073Z/\n?? benchmark/results/stream_vectorization_smoke_20261116T103919_707262Z/\n?? benchmark/run_stream_buffers.py\n?? benchmark/run_stream_vectorization.py\n?? benchmark/stream_references.py\n?? tests/stream/test_benchmark_confusion_reference.py\n?? tests/stream/test_benchmark_split_reference.py",
+    "source_sha256": {
+      "numcompute_stream/__init__.py": "57250d638b9735a2761fdff2eea6f747c69188179ff11fc88c53586ccc00a285",
+      "numcompute_stream/_categorical.py": "0f19cc439f6c6b5a504ba9f14e3a14dd4267aa640868994e0c27652e127b441e",
+      "numcompute_stream/_memory.py": "0a7333e972e2f1f37183d434f7521bd45ac42f01dd5da9e71e04ae94b4f92493",
+      "numcompute_stream/_moments.py": "6f5cf800611e315a1ffe84a298589a8e7bb9cf9722d766af038663195fb23a35",
+      "numcompute_stream/_validation.py": "a8a604ae4c450d271da2af556d4dbe0a75603e59b7d4c5e082fc6ac1302565b4",
+      "numcompute_stream/io.py": "c4b8b7899d463715c4fa949972cff7245e5e480ef80638289252bd9871e80922",
+      "numcompute_stream/metrics.py": "b9e4bf07fdf984c1b6e238722f3494e2f6f86d159e5630c516946b3628c405dd",
+      "numcompute_stream/pipeline.py": "1ef9638395fae2cad9ed65c0efe7be91138f9349a49610ca126d36d5fdc8030c",
+      "numcompute_stream/preprocessing.py": "6924b1d26055e17c72e4fc90a6ba0c8bab4807538050e562b1a78c1c6c3fb6c8",
+      "numcompute_stream/stats.py": "7fe9209e99886a2b4901a12c952b704a9ce6bf23ecd2506f9b57492f1bd9d611",
+      "numcompute_stream/stream.py": "bf8f8af9d3bee28be72219ad83af1d824f0d1bb39561b918c32f67c7229c2029",
+      "numcompute_stream/tree.py": "5461f9dff353a6d5af3bd5a2282caabbbdd15f612d65bf0e783015791163af5d",
+      "numcompute_stream/visualise.py": "1d8808f494205a72f2fb8f4ff5282fa48fe018c2c7bd63ab86a0c5453123726e",
+      "benchmark/check_stream_long_run.py": "a16ee928c24b1879513e6f033e50aaf9e7adc78cca7e5bc4eafdc7aa4bd03333",
+      "benchmark/run_stream_vectorization.py": "55dcac7a97433fd03ba7f69b1ea181e24d3f00357137e5b06ad3849aaf9e94c0",
+      "benchmark/stream_references.py": "4a446ae1b948a8e9e09c0da947aa5cea4b89cefb92cc26ef00779d83bc054d41"
+    },
+    "seed": 2026,
+    "total_samples": 20037,
+    "chunk_size": 100,
+    "buffer_size": 300,
+    "window_size": 500,
+    "max_depth": 5,
+    "data": "Generated per chunk: standard-normal features; target is (x1>0.25) or (x2<-0.5), 5% label flips, then 5% missing features. Generated stream, not replay of the demo CSV.",
+    "scope": "Functional long-stream check, not a performance benchmark. Memory covers current model and evaluation arrays, excluding Python overhead, logs, inputs and temporary allocations. Log event count is reported separately. No tail flush.",
+    "invalid_input_checks": "One Inf score rejected without logging; one Inf fit rejected and logged. Model, evaluation counters/metrics and probe predictions unchanged; valid processing then continues."
+  },
+  "checkpoints": [
+    {
+      "samples_seen": 1000,
+      "evaluated_samples": 700,
+      "retrain_count": 3,
+      "buffer_samples": 100,
+      "log_events": 20,
+      "reachable_array_bytes": 31336,
+      "buffer_array_bytes": 3200,
+      "accuracy": 0.8957142857142857,
+      "auc": 0.888280905358173
+    },
+    {
+      "samples_seen": 10000,
+      "evaluated_samples": 9700,
+      "retrain_count": 33,
+      "buffer_samples": 100,
+      "log_events": 200,
+      "reachable_array_bytes": 175432,
+      "buffer_array_bytes": 3200,
+      "accuracy": 0.8922680412371135,
+      "auc": 0.8892026931853494
+    },
+    {
+      "samples_seen": 20000,
+      "evaluated_samples": 19700,
+      "retrain_count": 66,
+      "buffer_samples": 200,
+      "log_events": 401,
+      "reachable_array_bytes": 338504,
+      "buffer_array_bytes": 6400,
+      "accuracy": 0.8921827411167512,
+      "auc": 0.8940330842629101
+    },
+    {
+      "samples_seen": 20037,
+      "evaluated_samples": 19737,
+      "retrain_count": 66,
+      "buffer_samples": 237,
+      "log_events": 403,
+      "reachable_array_bytes": 340280,
+      "buffer_array_bytes": 7584,
+      "accuracy": 0.8921821958757663,
+      "auc": 0.8939911885865934
+    }
+  ],
+  "final_metrics": {
+    "cumulative": {
+      "classes": [
+        0,
+        1
+      ],
+      "confusion_matrix": [
+        [
+          7360,
+          933
+        ],
+        [
+          1195,
+          10249
+        ]
+      ],
+      "n_samples": 19737,
+      "support": [
+        8293,
+        11444
+      ],
+      "predicted_support": [
+        8555,
+        11182
+      ],
+      "accuracy": 0.8921821958757663,
+      "precision": [
+        0.8603156049094097,
+        0.9165623323197997
+      ],
+      "recall": [
+        0.8874954781140721,
+        0.8955784690667599
+      ],
+      "f1": [
+        0.8736942070275404,
+        0.9059489083355432
+      ],
+      "precision_macro": 0.8884389686146047,
+      "precision_weighted": 0.8929288464600255,
+      "recall_macro": 0.891536973590416,
+      "recall_weighted": 0.8921821958757663,
+      "f1_macro": 0.8898215576815418,
+      "f1_weighted": 0.8923962793672467
+    },
+    "rolling": {
+      "classes": [
+        0,
+        1
+      ],
+      "confusion_matrix": [
+        [
+          189,
+          23
+        ],
+        [
+          30,
+          258
+        ]
+      ],
+      "n_samples": 500,
+      "support": [
+        212,
+        288
+      ],
+      "predicted_support": [
+        219,
+        281
+      ],
+      "accuracy": 0.894,
+      "precision": [
+        0.863013698630137,
+        0.9181494661921709
+      ],
+      "recall": [
+        0.8915094339622641,
+        0.8958333333333334
+      ],
+      "f1": [
+        0.877030162412993,
+        0.9068541300527241
+      ],
+      "precision_macro": 0.8905815824111539,
+      "precision_weighted": 0.8947719007458684,
+      "recall_macro": 0.8936713836477987,
+      "recall_weighted": 0.894,
+      "f1_macro": 0.8919421462328585,
+      "f1_weighted": 0.894208767773478,
+      "window_size": 500,
+      "n_samples_seen": 19737
+    },
+    "cumulative_auc": {
+      "auc": 0.8939911885865934,
+      "n_samples": 19737,
+      "n_positive": 11444,
+      "n_negative": 8293
+    },
+    "rolling_auc": {
+      "auc": 0.88770964360587,
+      "n_samples": 500,
+      "n_positive": 288,
+      "n_negative": 212,
+      "window_size": 500,
+      "n_samples_seen": 19737
+    }
+  },
+  "final_log_events": 403,
+  "failed_fit_events": 1,
+  "checks_passed": true
+}
