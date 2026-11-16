@@ -12,8 +12,9 @@ publication, external-transformer interoperability, evaluation before
 learning, automatic binary probability alignment, event logs and scoped
 NumPy-array memory accounting.
 
-Streaming CSV integration, visualisation, the streaming demonstration
-and performance benchmarks remain pending.
+Streaming CSV input and integration, three plotting interfaces and the
+streaming demonstration notebook are implemented and verified.
+Performance benchmarks and long-stream memory experiments remain pending.
 
 Verification sections below are chronological checkpoints. Statements
 such as "pending" or "not yet rerun" inside earlier entries describe the
@@ -24,14 +25,29 @@ Incremental preprocessing and statistics were committed and pushed as
 be0694e. Cumulative and rolling metrics were committed and pushed as
 25d2a8b. The current development branch is Jiahe-assignment-2.2.
 
-Pipeline and StreamTrainer code verification has passed. Documentation
-review, staging, commit and push for these changes remain pending.
+Pipeline and StreamTrainer were committed and pushed as 2b60438.
+CSV input, visualisation and demonstration verification has passed;
+staging, commit and push for these newer changes remain pending.
 
 ## Environment
 
-- Python 3.12.6
-- NumPy 1.26.4
+Current verified environment for CSV, plotting and notebook work:
+
+- Windows; Python 3.12.6
+- NumPy 2.5.5
+- Matplotlib 3.11.2
+- IPython 9.18.1
+- ipykernel 7.4.0
+- nbformat 5.11.1
+- nbclient 0.11.0
 - Project interpreter: .venv/Scripts/python.exe
+- Registered kernel: numcompute-stream
+- pip check: No broken requirements found.
+
+Earlier verification and synthetic-data generation used NumPy 1.26.4.
+The original installation output was not retained, so the precise
+dependency-upgrade sequence is not established. Historical environment
+records are preserved.
 
 ## Coverage
 
@@ -540,3 +556,175 @@ above belongs to the verified full-regression run.
 
 Documentation review, staging, commit and push for Pipeline and
 StreamTrainer remain pending.
+
+## CSV, visualisation and streaming demonstration verification (2026-11-16)
+
+### Added tests
+
+| File under tests/stream/ | Tests | Focus |
+| --- | ---: | --- |
+| test_csv_chunks.py | 19 | Chunk boundaries, schema, labels, missing values, parsing errors and array ownership |
+| test_csv_integration.py | 3 | CSV-to-trainer evaluation order, string labels and incomplete-chunk failure |
+| test_visualise_metric.py | 12 | Coordinates, NaN gaps, axes reuse, saving, display and failure cleanup |
+| test_visualise_compare.py | 11 | Shared coordinates, labels, comparison curves and figure ownership |
+| test_visualise_predictions.py | 11 | Categorical mapping, large integers, sample positions and failure cleanup |
+| Total | 56 | subTest cases are not counted as separate test methods |
+
+The streaming-package count increased from 339 to 395.
+Together with 497 original tests, the complete suite contains 892 tests.
+
+### Recorded results
+
+| Checkpoint | Tests | Seconds | Result |
+| --- | ---: | ---: | --- |
+| CSV reader focused tests | 19 | 0.455 | OK |
+| Streaming suite after CSV reader | 358 | 0.390 | OK |
+| CSV integration focused tests | 3 | 0.172 | OK |
+| Streaming suite after CSV integration | 361 | 0.424 | OK |
+| Full regression after environment change, before plotting tests | 858 | 0.911 | OK |
+| Metric plotting focused tests | 12 | 0.548 | OK |
+| Streaming suite after metric plotting | 373 | 0.669 | OK |
+| Model-comparison plotting focused tests | 11 | 0.699 | OK |
+| Streaming suite after comparison plotting | 384 | 1.073 | OK |
+| Prediction plotting focused tests | 11 | 0.530 | OK |
+| Streaming suite after prediction plotting | 395 | 1.287 | OK |
+| Final full regression | 892 | 1.939 | OK |
+
+All five focused test modules were run with -W error.
+Test durations are execution records, not benchmark results.
+
+The final full regression printed small benchmark-runner messages and a
+temporary results path as part of existing tests. This does not establish
+completion of the Assignment 2.2 performance experiments.
+
+### CSV and dataset evidence
+
+- Generated 1,200 synthetic rows with three numeric features and integer
+  binary labels using seed 2026.
+- Observed label counts were [517, 683], with 154 missing feature values
+  and 57 label flips.
+- Generation rules and the original NumPy 1.26.4 environment are recorded
+  in demo/data/stream_classification_source.md.
+- Reading with chunk_size=128 produced nine 128-row chunks and one
+  48-row chunk, preserving class counts and missing-value counts.
+- Public import from numcompute_stream was verified.
+- CSV integration tests cover scoring before learning, incomplete final
+  buffers, string labels and a later CSV error that does not submit the
+  incomplete chunk or undo earlier completed processing.
+
+### Plotting evidence
+
+- All three functions are exported from numcompute_stream.
+- A fresh-process check confirmed that package import did not load
+  matplotlib.pyplot.
+- Agg tests verify plotted coordinates and data, NaN gaps, categorical
+  class mapping, PNG output, explicit show calls and figure ownership.
+- Large integer prediction labels remain distinct.
+- Simulated plotting/saving failures close newly created figures while
+  preserving caller-owned figures.
+- Tests do not require pixel-identical rendering.
+
+### Notebook verification
+
+demo/stream_demo.ipynb was opened in VS Code using the project virtual
+environment. After restarting the kernel, all nine code cells executed
+successfully. All three figures displayed inline and the final output
+was:
+
+```text
+Demo completion checks: PASS
+```
+
+The completion cell checked non-empty PNG files and their PNG signatures:
+
+- demo/figures/stream_cumulative_accuracy.png
+- demo/figures/stream_buffer_comparison.png
+- demo/figures/stream_predictions_vs_truth.png
+
+Verification was performed through VS Code. nbclient was installed but
+was not used for an automated execution in this checkpoint.
+
+The buffer-300 demonstration confirmed:
+
+- Chunk size 128; tree max_depth=5 and random_state=2026.
+- Three warm-up chunks, containing 384 rows.
+- 816 evaluated samples; rolling window size 200.
+- Retraining on chunks 3, 6 and 9, using 384 rows each.
+- Final pending buffer of 48 rows, without automatic flushing.
+- Twenty alternating score/fit events.
+- Cumulative accuracy: 0.9080882352941176.
+- Rolling accuracy: 0.9.
+- Cumulative AUC: 0.9078371747257387.
+- Rolling AUC: 0.9112723214285714.
+
+The independent buffer-600 run trained once at chunk 5 using 640 rows,
+evaluated 560 rows and retained a final 560-row buffer.
+
+The comparison plot uses chunk accuracy on common chunks 6 through 10.
+Earlier positions remain NaN. These chunks contain [128, 128, 128, 128, 48]
+samples, so their accuracies must not be averaged without sample weights.
+
+The prediction plot uses recorded pre-learning predictions for the first
+50 evaluated rows, at original data positions 385 through 434. It showed
+three errors and subset accuracy 0.94, reported separately from full
+evaluated-stream accuracy.
+
+The independent raw-data statistics pass processed all 1,200 rows.
+Per-feature valid counts were [1153, 1135, 1158], totalling 3446 valid
+values and 154 missing values. With fixed histogram edges from -3 to 3,
+out-of-range valid counts were [2, 3, 2]. Histogram counts plus these
+out-of-range counts matched the per-feature valid counts.
+
+Log inspection confirmed event order, retraining chunks, model versions,
+buffer states and the reachable_ndarray_nbytes memory method.
+Timing and array-storage values are scoped diagnostics, not isolated
+tree-training benchmarks, process RAM or peak-memory measurements.
+
+### Environment and debugging notes
+
+- The initial plotting-environment check failed with
+  ModuleNotFoundError: No module named 'matplotlib'.
+- After installation, matplotlib imported and Agg rendering passed.
+  The observed environment was NumPy 2.5.5 and matplotlib 3.11.2.
+- The installation output was not retained. The cause and exact sequence
+  of the NumPy version change are not inferred.
+- The project interpreter path and pip check were verified. A full
+  858-test regression passed before plotting tests were added.
+- Matplotlib was added to pyproject.toml dependencies. Notebook tooling
+  remains separate from core package dependencies.
+- Notebook dependencies and the project kernel were installed and checked.
+- No algorithm or assertion failures were reported in the five new
+  focused test modules.
+- A missing final newline in the design document was corrected and
+  verified. Git LF-to-CRLF notices were treated as line-ending reminders,
+  without changing Git configuration.
+
+### Reproduction commands
+
+Run from the repository root with the project environment active:
+
+```powershell
+python -W error -m unittest tests.stream.test_csv_chunks -v
+python -W error -m unittest tests.stream.test_csv_integration -v
+python -W error -m unittest tests.stream.test_visualise_metric -v
+python -W error -m unittest tests.stream.test_visualise_compare -v
+python -W error -m unittest tests.stream.test_visualise_predictions -v
+python -m unittest discover -s tests/stream -t . -q
+python -m unittest discover -s tests -q
+python -m pip check
+git diff --check
+```
+
+For notebook verification, select the project environment in VS Code,
+restart the kernel, run all cells and save the executed notebook.
+
+### Remaining work
+
+- Formal vectorisation benchmarks and systematic buffer-size timing
+  comparisons remain pending.
+- Long-stream memory experiments and final submission materials remain
+  pending.
+- Synthetic demonstration results do not establish real-world accuracy.
+- Exact quantiles, cumulative AUC and logs can grow with stream length.
+- Staging, commit and push for the CSV, plotting and demonstration changes
+  remain pending at this checkpoint.

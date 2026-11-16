@@ -2,7 +2,9 @@
 
 A modular scientific computing toolkit built with Python and NumPy for COMP 5004 Assignment 2.1. It provides tabular data loading, preprocessing, sorting and ranking, descriptive statistics, evaluation metrics, numerical differentiation, composable pipelines, and reproducible performance comparisons.
 
-The computational package uses only the Python standard library and NumPy.
+The original computational package uses the Python standard library and
+NumPy. The Assignment 2.2 extension additionally uses matplotlib for
+visualisation.
 
 The original `numcompute` package was developed as a group project for
 Assignment 2.1. Its documentation and contribution records are retained
@@ -17,6 +19,7 @@ streaming components, their current implementation status and limitations.
 
 - Python **3.10 or later**.
 - NumPy **1.24 or later**, installed automatically with the package.
+- Matplotlib, installed automatically with the package for streaming visualisation.
 - The recorded integration benchmark used Python **3.12.6** and NumPy **1.26.4** on Windows 11.
 
 Download or clone this repository and open a terminal in its root directory (the directory containing `pyproject.toml`).
@@ -295,6 +298,12 @@ Currently implemented:
 - Binary ROC AUC with cumulative and rolling evaluation state.
 - Integration checks for chunk partitioning, dynamic labels, probability
   column alignment, independent snapshots and failed-update recovery.
+- Incremental CSV reading with explicit feature/target selection,
+  missing-value handling and row/column error reporting.
+- CSV-to-Pipeline-to-StreamTrainer integration.
+- Metric curves, aligned model comparisons and categorical prediction plots.
+- A streaming demo notebook verified by restarting the kernel and running
+  all cells, with inline figures and saved PNG outputs.
 
 Buffered training is implemented for the standalone decision tree.
 Batch `fit` trains immediately on all supplied rows. `partial_fit` copies
@@ -305,8 +314,9 @@ Pipeline and StreamTrainer are implemented, including paired
 preprocessing/model publication, evaluation before learning, binary
 probability alignment, event logs and retained-array memory accounting.
 
-Streaming CSV integration, visualisation and the streaming demonstration
-remain pending.
+Streaming CSV integration, the three plotting interfaces and
+demo/stream_demo.ipynb are implemented and verified. Assignment 2.2
+performance benchmarks and final submission materials remain pending.
 
 ### Minimal example
 
@@ -441,10 +451,12 @@ when candidate training fails. External incremental transformers are
 supported through compatible methods and an explicit clone_unfitted
 protocol.
 
-Verified full regression: 836 tests passed in 0.836 seconds, comprising
-497 original tests and 339 streaming-package tests. This is a test
-execution measurement, not a performance benchmark. See
-`docs/assignment-2.2-testing.md` for commands and recorded results.
+Verified full regression: 892 tests passed in 1.939 seconds on
+16 November 2026, comprising 497 original tests and 395 streaming-package
+tests. The verified environment used Python 3.12.6, NumPy 2.5.5 and
+matplotlib 3.11.2 on Windows. This is a test execution measurement,
+not a performance benchmark. See docs/assignment-2.2-testing.md for
+commands and recorded results.
 
 ### Cumulative and rolling metrics
 
@@ -634,6 +646,112 @@ Classification class tables and the event log can also grow. The
 trainer therefore does not promise bounded memory or constant-time
 updates.
 
+### Streaming CSV input
+
+Import the streaming reader from `numcompute_stream`; it is separate
+from the original `numcompute.io` reader.
+
+```python
+from numcompute_stream import iter_csv_chunks
+
+for X_chunk, y_chunk in iter_csv_chunks(
+    "demo/data/stream_classification.csv",
+    target_column="target",
+    label_dtype="int",
+    chunk_size=128,
+):
+    print(X_chunk.shape, y_chunk.shape)
+```
+
+The reader uses standard-library CSV parsing, requires a header and
+yields the final short chunk. Features are numeric float64 arrays;
+configured missing markers become NaN. Labels are strings or exact
+Python integers in an object array. Missing labels and non-finite
+non-missing features are rejected.
+
+`feature_columns` optionally selects and orders features. By default,
+all columns except the explicit target are selected. Categorical feature
+columns require separate handling and are not automatically encoded.
+Float64 conversion can round large integer feature values.
+
+Validation occurs during iteration. If a later row fails, previously
+yielded chunks remain valid; the incomplete current chunk is not yielded.
+Exhaust or close the generator to release its file handle.
+
+### Streaming visualisation
+
+The package exports:
+
+- `plot_metric_over_time(metric_values, title, ylabel)`
+- `compare_models(metric1, metric2, labels)`
+- `plot_predictions_vs_ground_truth(y_true, y_pred)`
+
+All three return `(fig, ax)` and support optional `ax`, `save_path` and
+`show` arguments. The caller owns successful figures and should close
+them when finished. Output directories must already exist.
+
+Metric plots preserve NaN gaps. Explicit `x_values` retain actual chunk
+positions. Model comparisons require equal-length series at shared
+positions; callers must ensure the metrics and evaluation intervals are
+comparable.
+
+Prediction plots map integer or string classes onto shared categorical
+positions. Optional `sample_indices` retain original row positions.
+Exclude warm-up rows without predictions before plotting.
+
+The plotting module imports pyplot lazily and does not force a backend.
+Automated plotting tests use Agg; the notebook uses inline display.
+
+### Run the streaming demonstration
+
+With the project virtual environment active, install notebook tools:
+
+```powershell
+python -m pip install ipython ipykernel nbformat nbclient
+python -m ipykernel install --user --name numcompute-stream --display-name "Python (NumCompute Stream)"
+python -m pip check
+```
+
+These are notebook development tools, separate from core package
+dependencies. Open `demo/stream_demo.ipynb` in VS Code with Jupyter support,
+select the project's virtual environment or registered kernel, restart
+the kernel and run all cells. The notebook locates the repository from
+its root or the `demo` directory.
+
+The supplied CSV contains 1,200 synthetic samples and three numeric
+features. Its generation rules and original generation environment are
+documented in `demo/data/stream_classification_source.md`.
+
+The notebook demonstrates:
+
+- CSV chunks and paired imputation/scaling/tree training.
+- Evaluation before learning, cumulative/rolling metrics and binary AUC.
+- A common-interval comparison of buffer sizes 300 and 600.
+- Recorded pre-learning predictions, raw-data statistics and event logs.
+- Scoped array-storage accounting and its limitations.
+
+The buffer-300 run evaluates 816 samples, retrains on chunks 3, 6 and 9
+using 384 rows each, and retains a final 48-row buffer. The buffer-600
+run evaluates 560 samples, trains once on 640 rows and retains 560 rows.
+Neither run automatically flushes its final buffer.
+
+The notebook displays and saves these figures under `demo/figures`:
+
+- `stream_cumulative_accuracy.png`
+- `stream_buffer_comparison.png`
+- `stream_predictions_vs_truth.png`
+
+Repeated runs overwrite those generated images. Restart-and-run-all
+verification completed successfully with nine executed code cells and
+`Demo completion checks: PASS`.
+
+The verified notebook environment used IPython 9.18.1 and ipykernel 7.4.0;
+nbformat 5.11.1 and nbclient 0.11.0 were installed. Verification was
+performed through VS Code, not an automated nbclient execution.
+
+Synthetic-data accuracy and notebook timings are demonstration results,
+not evidence of real-world predictive performance or a formal benchmark.
+
 ### Tests
 
 Run from the repository root:
@@ -652,7 +770,10 @@ The second command includes both original and streaming-package tests.
 - Split-search temporary memory grows with sample, class and feature counts.
 - Feature subsampling may stop at a leaf when the selected subset has no
   useful split.
-- In-memory streaming integration is tested. Streaming CSV integration,
-  visualisation, demonstration and performance benchmarks remain pending.
+- In-memory and CSV streaming integration are tested; the streaming
+  notebook and three plotting interfaces are verified.
+- Assignment 2.2 vectorisation benchmarks, systematic buffer-size timing
+  comparisons and long-stream memory experiments remain pending.
+- The demo uses synthetic data and does not establish real-world accuracy.
 
 See `docs/assignment-2.2-design.md` for detailed numerical policies.

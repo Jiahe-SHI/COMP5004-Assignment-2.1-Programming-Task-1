@@ -9,8 +9,10 @@ preprocessing and tree state. StreamTrainer separates evaluation from
 learning and provides probability alignment, event logs and scoped
 NumPy-array memory accounting.
 
-Streaming CSV integration, visualisation, the streaming demonstration
-and performance benchmarks remain pending.
+Streaming CSV input, CSV-to-trainer integration, three plotting interfaces
+and the streaming demonstration notebook are implemented and verified.
+Performance benchmarks, systematic buffer-size timing comparisons and
+long-stream memory experiments remain pending.
 
 ## Inputs and state
 
@@ -555,3 +557,126 @@ Memory and work:
 - Update temporaries depend on incoming chunk size.
 - No benchmark or long-stream memory measurement is established by these
   unit tests.
+
+## Streaming CSV input contract (2026-11-16)
+
+- iter_csv_chunks is exported from numcompute_stream and is separate
+  from the original numcompute.io reader.
+- Use standard-library csv parsing with a required header and strict
+  CSV syntax checking. Quoted fields are supported.
+- target_column explicitly identifies the label column.
+- feature_columns optionally selects and orders numeric feature columns.
+  By default, select all columns except the target. Reject duplicate,
+  unknown or empty selections and target inclusion.
+- Header names are matched exactly. Reject duplicate or blank names.
+- chunk_size must be a positive integer; boolean values are rejected.
+- Yield independent X/y arrays. X is float64 with shape
+  (n_rows, n_features); y is one-dimensional.
+- label_dtype is "str" or "int". Integer labels are parsed directly as
+  Python integers and stored in object arrays without conversion through
+  float. Integer syntax is [+-]?[0-9]+.
+- Strip surrounding whitespace from data fields and missing markers.
+  Missing-marker matching is case-sensitive.
+- Configured missing feature markers become NaN. Reject other non-finite
+  feature values and missing labels. Float64 feature conversion may
+  round large integer values.
+- Reject blank data rows and incorrect field counts. Parsing errors
+  include useful line/column context where available. For records that
+  span physical lines, csv.reader.line_num identifies the ending line.
+- Read incrementally rather than loading the complete file. Yield the
+  final short chunk; do not produce an extra empty chunk.
+- An empty file is invalid. A valid header-only file yields no chunks.
+- Validation and file opening occur when iteration begins.
+- A later parsing failure does not invalidate previously yielded chunks.
+  The current incomplete chunk is not yielded; downstream training
+  already performed on earlier chunks is not rolled back.
+- Exhaust or close the generator to release its file handle.
+- The reader does not impute, scale or automatically route categorical
+  feature columns.
+
+## Plotting contracts (2026-11-16)
+
+The public functions are:
+
+- plot_metric_over_time(metric_values, title, ylabel)
+- compare_models(metric1, metric2, labels)
+- plot_predictions_vs_ground_truth(y_true, y_pred)
+
+Common behaviour:
+
+- Return (fig, ax); support optional ax, save_path and show arguments.
+- Import pyplot lazily and do not select a backend inside the module.
+- Create a figure when ax is omitted; otherwise append artists without
+  clearing existing axes. Titles, labels and other documented axis
+  settings may change.
+- Output parent directories must already exist.
+- Successful figures belong to the caller, who should close them when
+  finished. Close a newly created figure if drawing, saving or showing
+  fails. Keep caller-supplied figures open; do not promise rollback of
+  modifications to their axes.
+- Tests use Agg. The demonstration notebook uses inline display.
+
+Metric curves:
+
+- Require non-empty, one-dimensional real numeric series.
+- Preserve NaN values as gaps, including all-NaN warm-up series.
+  Reject infinity and non-numeric, boolean or complex array dtypes.
+- Default coordinates are 1 through n. Explicit x_values must be finite,
+  strictly increasing and match the series length.
+- NumPy input dtype inference occurs before numeric dtype validation;
+  the checks do not recover original element types after coercion.
+
+Model comparisons:
+
+- Require equal-length series at shared coordinates.
+- Require two distinct, non-empty string labels after whitespace stripping.
+- The legend describes the two newly added comparison lines.
+- Callers must ensure metric meaning and evaluation intervals agree.
+  The plotting function cannot establish experimental comparability.
+
+Prediction plots:
+
+- Use the shared homogeneous integer/string label contract. Require
+  non-empty, equal-length true/predicted arrays of the same label family.
+- Map the sorted union of true and predicted classes to categorical
+  positions. Preserve integer label precision when building the mapping.
+- Draw true labels as open circles and predictions as crosses.
+- Default sample positions are 1 through n. Explicit sample_indices must
+  be finite, strictly increasing and match the label count.
+- Set y-axis ticks and limits for the current class mapping. Existing
+  artists are meaningful only if they use a compatible mapping.
+- Exclude warm-up samples without predictions before calling.
+
+## Streaming demonstration protocol (2026-11-16)
+
+- demo/stream_demo.ipynb uses the supplied synthetic classification CSV.
+  Generation rules and the original generation environment are recorded
+  in demo/data/stream_classification_source.md.
+- The dataset contains 1,200 rows, three numeric features and integer
+  binary labels. CSV row order simulates arrival order; no real
+  timestamps or intentional concept drift are claimed.
+- Read chunks of 128 rows. Use Imputer, StandardScaler and a decision
+  tree with max_depth=5 and random_state=2026.
+- Score each chunk before learning from it. Preserve pre-learning
+  predictions and original row positions for plotting and accuracy
+  checks; do not recompute historical predictions with the final model.
+- The buffer-300 run first trains on chunk 3, evaluates 816 rows,
+  retrains on chunks 3/6/9 with 384 rows each and retains 48 final rows.
+- The independent buffer-600 run first trains on chunk 5 using 640 rows,
+  evaluates 560 rows and retains 560 final rows.
+- Compare chunk accuracy only on common evaluation chunks 6 through 10.
+  Preserve earlier positions as NaN. The last chunk contains 48 rows,
+  so an unweighted average of chunk accuracies is not overall accuracy.
+- Show the first 50 evaluated samples from the buffer-300 run, at data
+  row positions 385 through 434, without selection by correctness.
+- Compute raw-data statistics in a separate CSV pass. Include warm-up
+  rows in descriptive statistics without feeding these full-stream
+  statistics back into earlier model predictions.
+- Display all three specified plot types and save PNG files under
+  demo/figures. Repeated execution overwrites those generated images.
+- Recreate experiment state in the relevant code cells. Restarting the
+  kernel and running all nine code cells was verified in VS Code.
+- Demonstration arrays, statistics state and the second trainer are
+  outside the original trainer's reported array-memory scope.
+- Demonstration accuracy and timings do not replace formal benchmarks
+  or establish real-world predictive performance.

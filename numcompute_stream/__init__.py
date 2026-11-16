@@ -6,7 +6,10 @@ statistics, cumulative and rolling classification metrics, binary ROC AUC,
 a buffered Pipeline with paired preprocessing/model snapshots, and
 StreamTrainer evaluation, learning, event logs and array-storage accounting.
 
-CSV integration and visualisation remain under development.
+CSV chunk reading supports numeric features and classification labels,
+with tested CSV-to-trainer integration. Matplotlib helpers provide metric
+curves, model comparisons and categorical prediction plots.
+The streaming demo notebook remains under development.
 """
 
 from .tree import DecisionTreeClassifier
@@ -22,6 +25,12 @@ from .metrics import (
 )
 from .pipeline import Pipeline
 from .stream import StreamTrainer
+from .io import iter_csv_chunks
+from .visualise import (
+    plot_metric_over_time,
+    compare_models,
+    plot_predictions_vs_ground_truth,
+)
 
 __all__ = [
     "DecisionTreeClassifier",
@@ -37,4 +46,8 @@ __all__ = [
     "RollingROCAUC",
     "Pipeline",
     "StreamTrainer",
+    "iter_csv_chunks",
+    "plot_metric_over_time",
+    "compare_models",
+    "plot_predictions_vs_ground_truth",
 ]
