@@ -1,0 +1,116 @@
+Python: 3.12.6
+Python executable: C:\Users\14035\AppData\Local\Temp\numcompute-repro-2195e953107b4cfebc1e7ba27cb09096\.venv\Scripts\python.exe
+NumPy: 2.5.5
+Matplotlib: 3.11.2
+IPython: 9.18.1
+Repository: C:\Users\14035\AppData\Local\Temp\numcompute-repro-2195e953107b4cfebc1e7ba27cb09096
+Package: C:\Users\14035\AppData\Local\Temp\numcompute-repro-2195e953107b4cfebc1e7ba27cb09096\numcompute_stream\__init__.py
+Dataset: demo\data\stream_classification.csv
+# Synthetic streaming classification data
+
+Generated locally for this assignment using NumPy; no external dataset was used.
+
+- Generator: numpy.random.default_rng(2026).
+- Rows: 1200; numeric features: x1, x2, x3.
+- Features: independent standard normal draws.
+- Target: int((x1 > 0.25) or (x2 < -0.5)).
+- Each target is independently flipped with probability 0.05.
+- After target generation, each feature value is independently replaced with an empty field with probability 0.05.
+- Random draws occur in this order: features, label flips, feature missingness.
+- x3 is a noise feature; target values are never missing.
+- CSV row order defines the simulated arrival order. There are no real timestamps or intentional concept drift.
+- This dataset demonstrates functionality; results do not establish performance on real-world data.
+- Generation environment: NumPy 1.26.4.
+
+chunk= 1 rows=128 warm_up=True  scored_version=0 active_version=0 buffer=128
+chunk= 2 rows=128 warm_up=True  scored_version=0 active_version=0 buffer=256
+chunk= 3 rows=128 warm_up=True  scored_version=0 active_version=1 buffer=  0
+chunk= 4 rows=128 warm_up=False scored_version=1 active_version=1 buffer=128
+chunk= 5 rows=128 warm_up=False scored_version=1 active_version=1 buffer=256
+chunk= 6 rows=128 warm_up=False scored_version=1 active_version=2 buffer=  0
+chunk= 7 rows=128 warm_up=False scored_version=2 active_version=2 buffer=128
+chunk= 8 rows=128 warm_up=False scored_version=2 active_version=2 buffer=256
+chunk= 9 rows=128 warm_up=False scored_version=2 active_version=3 buffer=  0
+chunk=10 rows= 48 warm_up=False scored_version=3 active_version=3 buffer= 48
+
+Rows read: 1200
+Missing feature values: 154
+Evaluated samples: 816
+Retrain chunks: [3, 6, 9]
+Training sizes: [384, 384, 384]
+Remaining buffer: 48
+Log events: 20
+Cumulative accuracy: 0.9080882352941176
+Rolling accuracy: 0.9
+Cumulative AUC: 0.9078371747257387
+Rolling AUC: 0.9112723214285714
+Streaming evaluation checks: PASS
+Saved: demo\figures\stream_cumulative_accuracy.png
+Metric figure check: PASS
+Buffer 600 retrain chunks: [5]
+Buffer 600 training sizes: [640]
+Buffer 600 remaining buffer: 560
+Common evaluation chunks: [6, 7, 8, 9, 10]
+Chunk sizes: [128, 128, 128, 128, 48]
+Buffer 300 chunk accuracy: [0.90625, 0.90625, 0.90625, 0.8828125, 0.9583333333333334]
+Buffer 600 chunk accuracy: [0.9140625, 0.9140625, 0.921875, 0.9140625, 0.9583333333333334]
+Saved: demo\figures\stream_buffer_comparison.png
+Model comparison figure check: PASS
+Model: Buffer 300
+Displayed data rows: 385 to 434
+Displayed samples: 50
+Incorrect predictions in displayed subset: 3
+Displayed subset accuracy: 0.94
+Full evaluated-stream accuracy: 0.9080882352941176
+Saved: demo\figures\stream_predictions_vs_truth.png
+Prediction figure check: PASS
+Raw rows processed: 1200
+Missing feature values: 154
+
+Feature     Count        Mean    Variance         Q25      Median         Q75
+x1           1153   -0.033734    1.010815   -0.729306   -0.016461    0.673165
+x2           1135   -0.008107    1.010329   -0.702705    0.020159    0.656852
+x3           1158    0.000532    0.998575   -0.699018    0.035850    0.701622
+
+Histogram edges: [-3. -2. -1.  0.  1.  2.  3.]
+Histogram counts (rows=x1,x2,x3; columns=bins):
+[[ 27 167 387 399 147  24]
+ [ 25 171 365 402 149  20]
+ [ 28 146 390 404 170  18]]
+Valid observations outside histogram range: [2 3 2]
+Streaming statistics checks: PASS
+Buffer 300 event log
+Event Chunk Action Version  Buffer Retrains    Seconds  Array bytes
+    1     1 score        0       0        0   0.000126          144
+    2     1 fit          0     128        0   0.000065         4240
+    3     2 score        0     128        0   0.000111         4240
+    4     2 fit          0     256        0   0.000068         8336
+    5     3 score        0     256        0   0.000096         8336
+    6     3 fit          1       0        1   0.014299          936
+    7     4 score        1       0        1   0.001940         7080
+    8     4 fit          1     128        1   0.000066        11176
+    9     5 score        1     128        1   0.002364        15528
+   10     5 fit          1     256        1   0.000070        19624
+   11     6 score        1     256        1   0.002457        21672
+   12     6 fit          2       0        2   0.007559        13480
+   13     7 score        2       0        2   0.002752        15528
+   14     7 fit          2     128        2   0.000081        19624
+   15     8 score        2     128        2   0.002830        21672
+   16     8 fit          2     256        2   0.000080        25768
+   17     9 score        2     256        2   0.002878        27816
+   18     9 fit          3       0        3   0.007952        19624
+   19    10 score        3       0        3   0.002257        20392
+   20    10 fit          3      48        3   0.000038        21928
+
+Successful buffered retraining chunks: [3, 6, 9]
+Total scoring-call seconds: 0.017812900012359023
+Total learning-call seconds: 0.03027779998956248
+Current tracked array bytes: 21928
+Of which buffer array bytes: 1536
+Memory method: reachable_ndarray_nbytes
+Log events: 20
+Log and memory inspection checks: PASS
+Figure available: demo\figures\stream_cumulative_accuracy.png
+Figure available: demo\figures\stream_buffer_comparison.png
+Figure available: demo\figures\stream_predictions_vs_truth.png
+Demo completion checks: PASS

@@ -1,0 +1,5 @@
+samples_seen,confusion_array_bytes,cumulative_auc_array_bytes,rolling_auc_array_bytes,stats_array_bytes,cumulative_auc_retained_samples,rolling_auc_retained_samples,cumulative_auc,rolling_auc
+1000,64,16000,8000,24072,1000,500,0.696752,0.697216
+10000,64,160000,8000,240072,10000,500,0.71036648,0.731104
+25000,64,400000,8000,600072,25000,500,0.7062316608,0.70768
+50000,64,800000,8000,1200072,50000,500,0.705265336,0.69264

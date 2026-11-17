@@ -821,4 +821,66 @@ recorded full regression remains 903 tests: 497 original tests and
 406 streaming tests. The full regression was not rerun for these
 documentation-only changes.
 
-Clean-checkout installation and complete reproduction remain pending.
+At this documentation checkpoint, clean-checkout reproduction was still
+pending. It was subsequently completed as recorded below.
+
+## Fresh-checkout reproduction
+
+Verified on 18 November 2026 (Australia/Adelaide) using a fresh GitHub
+clone checked out at:
+`2ffa7c4ca1dc8e1870c47dfc81862f20fb1b9197`.
+
+A new virtual environment was created without copying the development
+environment. Editable installation succeeded, `pip check` reported no
+broken requirements, and isolated imports resolved both packages to
+the fresh checkout.
+
+Environment: Python 3.12.6, NumPy 2.5.5, matplotlib 3.11.2.
+Notebook tools: IPython 9.18.1, ipykernel 7.4.0, nbformat 5.11.1,
+nbclient 0.11.0.
+
+Verification results:
+
+- Streaming suite with warnings treated as errors:
+  406 tests passed in 1.395 seconds.
+- Complete regression:
+  903 tests passed in 1.783 seconds.
+- Notebook: previous outputs and execution counts were cleared in
+  memory before execution through nbclient. The kernel explicitly
+  used the new environment's interpreter. All nine code cells ran
+  in order and produced `Demo completion checks: PASS`.
+- All three demo PNG files passed nonempty-file and signature checks.
+  This automated check did not separately assess visual layout.
+- Formal vectorisation benchmark: all nine equivalence checks passed.
+- Formal buffer benchmark: all 21 measured runs passed, reproducing
+  the recorded accuracies and retraining counts.
+- State-growth check: 50,000 samples passed.
+- Long-stream check: 20,037 samples, 19,737 evaluated samples,
+  66 retrainings, 237 pending samples and 403 log events.
+  Invalid-input rejection and continued processing passed.
+- Plotting from the explicitly selected original benchmark results:
+  all three PNG checks passed.
+
+The notebook run emitted warnings about unencrypted TCP kernel
+communication and parent-process exit. Execution and all completion
+checks succeeded; these warnings are retained as observed diagnostics.
+
+New experiment directories under `benchmark/results/`:
+
+- `stream_vectorization_formal_20261117T143850_388362Z/`
+- `stream_buffers_formal_20261117T143851_941808Z/`
+- `stream_state_growth_20261117T143852_574900Z/`
+- `stream_long_run_20261117T143855_756954Z/`
+
+The four reproduction result directories were copied into the
+submission repository under `benchmark/results/`. The executed notebook
+and captured stdout were copied to `docs/reproduction-20261118/`.
+All copied files were verified against their sources using SHA256.
+
+Timing values varied between runs. The report continues to reference
+the original formal benchmark results. Test durations are not
+performance benchmarks. No additional unit tests were added.
+
+After reproduction, Git reported only the new experiment directories
+and `reproduction-output/` as untracked; no tracked-file differences
+were reported.

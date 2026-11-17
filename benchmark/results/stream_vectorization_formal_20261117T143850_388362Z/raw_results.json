@@ -1,0 +1,312 @@
+{
+  "metadata": {
+    "mode": "formal",
+    "timestamp_utc": "2026-11-17T14:38:50.241836+00:00",
+    "command_arguments": [
+      "C:\\Users\\14035\\AppData\\Local\\Temp\\numcompute-repro-2195e953107b4cfebc1e7ba27cb09096\\benchmark\\run_stream_vectorization.py"
+    ],
+    "python": "3.12.6 (tags/v3.12.6:a4a2d2b, Sep  6 2024, 20:11:23) [MSC v.1940 64 bit (AMD64)]",
+    "executable": "C:\\Users\\14035\\AppData\\Local\\Temp\\numcompute-repro-2195e953107b4cfebc1e7ba27cb09096\\.venv\\Scripts\\python.exe",
+    "numpy": "2.5.5",
+    "platform": "Windows-11-10.0.26200-SP0",
+    "processor": "Intel64 Family 6 Model 154 Stepping 3, GenuineIntel",
+    "git_head": "2ffa7c4ca1dc8e1870c47dfc81862f20fb1b9197",
+    "git_status": "?? reproduction-output/",
+    "source_sha256": {
+      "benchmark/run_stream_vectorization.py": "55dcac7a97433fd03ba7f69b1ea181e24d3f00357137e5b06ad3849aaf9e94c0",
+      "benchmark/stream_references.py": "4a446ae1b948a8e9e09c0da947aa5cea4b89cefb92cc26ef00779d83bc054d41",
+      "numcompute_stream/metrics.py": "d13ef0b33c3297de484febdad0434fc5566d73062e983245204c840e7f3c51c1",
+      "numcompute_stream/tree.py": "2cd1c2692f32a517406b6d6a2c01c4f54ee646096dcfdbd20e5dc1c22ab9d513",
+      "numcompute_stream/_validation.py": "669dcc660d470affadc1ef8649b6c92b74428676f76d568cc95b981b0e0f8247"
+    },
+    "seed": 2026,
+    "warmup_calls_per_implementation": 1,
+    "repeats": 7,
+    "timing_scope": {
+      "confusion": "Batch loop reference versus fresh metric construction, one update and result copy; not an isolated kernel test.",
+      "split_search": "Validated all-feature split search, including sorting; loop boundary and production midpoint are compared by their observed-sample partitions.",
+      "excluded": "Data generation, equivalence checks and file I/O."
+    }
+  },
+  "cases": [
+    {
+      "operation": "confusion",
+      "n_samples": 1000,
+      "n_features": 0,
+      "n_classes": 4,
+      "criterion": "",
+      "repeats": 7,
+      "loop_median_seconds": 0.0002117999829351902,
+      "vectorized_median_seconds": 0.0004960999940522015,
+      "speedup": 0.4269300251450997,
+      "timings_seconds": {
+        "loop": [
+          0.0002001000102609396,
+          0.0008624999900348485,
+          0.0008018999942578375,
+          0.0002586999908089638,
+          0.0002117999829351902,
+          0.00020569999469444156,
+          0.00020020001102238894
+        ],
+        "vectorized": [
+          0.0004113999893888831,
+          0.001090999983716756,
+          0.0014040000387467444,
+          0.000526399991940707,
+          0.0004243999719619751,
+          0.0004214000073261559,
+          0.0004960999940522015
+        ]
+      }
+    },
+    {
+      "operation": "confusion",
+      "n_samples": 10000,
+      "n_features": 0,
+      "n_classes": 4,
+      "criterion": "",
+      "repeats": 7,
+      "loop_median_seconds": 0.002081399958115071,
+      "vectorized_median_seconds": 0.00514720001956448,
+      "speedup": 0.4043751846059374,
+      "timings_seconds": {
+        "loop": [
+          0.0026283999904990196,
+          0.0020217999699525535,
+          0.0019441000185906887,
+          0.0020678999717347324,
+          0.002116599993314594,
+          0.002081399958115071,
+          0.002399599994532764
+        ],
+        "vectorized": [
+          0.00894299999345094,
+          0.00514720001956448,
+          0.004676899989135563,
+          0.004997099982574582,
+          0.004911900032311678,
+          0.005502999993041158,
+          0.00589690002379939
+        ]
+      }
+    },
+    {
+      "operation": "confusion",
+      "n_samples": 100000,
+      "n_features": 0,
+      "n_classes": 4,
+      "criterion": "",
+      "repeats": 7,
+      "loop_median_seconds": 0.023385000007692724,
+      "vectorized_median_seconds": 0.06613329995889217,
+      "speedup": 0.35360400920910673,
+      "timings_seconds": {
+        "loop": [
+          0.022736100014299154,
+          0.024013600021135062,
+          0.024079399998299778,
+          0.02309249999234453,
+          0.024768400005996227,
+          0.023385000007692724,
+          0.023050400021020323
+        ],
+        "vectorized": [
+          0.06482729996787384,
+          0.06613329995889217,
+          0.06699149997439235,
+          0.06750619999365881,
+          0.0657148000318557,
+          0.06744200002867728,
+          0.06571320001967251
+        ]
+      }
+    },
+    {
+      "operation": "split_search",
+      "n_samples": 100,
+      "n_features": 4,
+      "n_classes": 4,
+      "criterion": "gini",
+      "repeats": 7,
+      "loop_median_seconds": 0.0009299000375904143,
+      "vectorized_median_seconds": 0.0003869000356644392,
+      "speedup": 2.4034633028489103,
+      "timings_seconds": {
+        "loop": [
+          0.0010334000107832253,
+          0.0009015999967232347,
+          0.0009055999689735472,
+          0.0009114000131376088,
+          0.0009299000375904143,
+          0.0009500999585725367,
+          0.0009482000023126602
+        ],
+        "vectorized": [
+          0.00047830003313720226,
+          0.00038650003261864185,
+          0.0003869000356644392,
+          0.00035749998642131686,
+          0.0004425999941304326,
+          0.00038219999987632036,
+          0.0004059000057168305
+        ]
+      }
+    },
+    {
+      "operation": "split_search",
+      "n_samples": 100,
+      "n_features": 4,
+      "n_classes": 4,
+      "criterion": "entropy",
+      "repeats": 7,
+      "loop_median_seconds": 0.0010721000144258142,
+      "vectorized_median_seconds": 0.0004676000098697841,
+      "speedup": 2.2927715821143146,
+      "timings_seconds": {
+        "loop": [
+          0.0010628000018186867,
+          0.001073199964594096,
+          0.001070900005288422,
+          0.001089199970010668,
+          0.0010721000144258142,
+          0.0010670000337995589,
+          0.0010763999889604747
+        ],
+        "vectorized": [
+          0.00048439996317029,
+          0.0004676000098697841,
+          0.000464299984741956,
+          0.0004461000207811594,
+          0.0004729999927803874,
+          0.00044109998270869255,
+          0.00047069997526705265
+        ]
+      }
+    },
+    {
+      "operation": "split_search",
+      "n_samples": 1000,
+      "n_features": 4,
+      "n_classes": 4,
+      "criterion": "gini",
+      "repeats": 7,
+      "loop_median_seconds": 0.01103650004370138,
+      "vectorized_median_seconds": 0.001640800037421286,
+      "speedup": 6.726291925886693,
+      "timings_seconds": {
+        "loop": [
+          0.010357599996495992,
+          0.009817500016652048,
+          0.012557200039736927,
+          0.011432600033003837,
+          0.01103650004370138,
+          0.011017100012395531,
+          0.013577699952293187
+        ],
+        "vectorized": [
+          0.001640800037421286,
+          0.0013352999812923372,
+          0.0019643999985419214,
+          0.00136900000507012,
+          0.002855400030966848,
+          0.0019281000131741166,
+          0.0015536000137217343
+        ]
+      }
+    },
+    {
+      "operation": "split_search",
+      "n_samples": 1000,
+      "n_features": 4,
+      "n_classes": 4,
+      "criterion": "entropy",
+      "repeats": 7,
+      "loop_median_seconds": 0.01193590002367273,
+      "vectorized_median_seconds": 0.0019390999805182219,
+      "speedup": 6.155381436537829,
+      "timings_seconds": {
+        "loop": [
+          0.01516880001872778,
+          0.012826599995605648,
+          0.016692099976353347,
+          0.011256599973421544,
+          0.011164099967572838,
+          0.011659300012979656,
+          0.01193590002367273
+        ],
+        "vectorized": [
+          0.002133100002538413,
+          0.002347300003748387,
+          0.0021969000226818025,
+          0.0017727999947965145,
+          0.0018352000042796135,
+          0.0016525000100955367,
+          0.0019390999805182219
+        ]
+      }
+    },
+    {
+      "operation": "split_search",
+      "n_samples": 10000,
+      "n_features": 4,
+      "n_classes": 4,
+      "criterion": "gini",
+      "repeats": 7,
+      "loop_median_seconds": 0.10764970001764596,
+      "vectorized_median_seconds": 0.014332799997646362,
+      "speedup": 7.510723657298189,
+      "timings_seconds": {
+        "loop": [
+          0.11214119999203831,
+          0.12997229996835813,
+          0.1055828999960795,
+          0.10789040004601702,
+          0.09913260000757873,
+          0.10554259998025373,
+          0.10764970001764596
+        ],
+        "vectorized": [
+          0.015630099980626255,
+          0.015406500024255365,
+          0.015259900013916194,
+          0.01425300003029406,
+          0.013758599990978837,
+          0.012699500017333776,
+          0.014332799997646362
+        ]
+      }
+    },
+    {
+      "operation": "split_search",
+      "n_samples": 10000,
+      "n_features": 4,
+      "n_classes": 4,
+      "criterion": "entropy",
+      "repeats": 7,
+      "loop_median_seconds": 0.11047899996628985,
+      "vectorized_median_seconds": 0.017095200018957257,
+      "speedup": 6.462574280720738,
+      "timings_seconds": {
+        "loop": [
+          0.10872569994535297,
+          0.10954180004773661,
+          0.11579100001836196,
+          0.11047899996628985,
+          0.10798069997690618,
+          0.11739069997565821,
+          0.11109719995874912
+        ],
+        "vectorized": [
+          0.017095200018957257,
+          0.01724709995323792,
+          0.01697179995244369,
+          0.014816800015978515,
+          0.01928619999671355,
+          0.01699380000354722,
+          0.017182399984449148
+        ]
+      }
+    }
+  ]
+}

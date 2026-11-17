@@ -328,8 +328,9 @@ probability alignment, event logs and retained-array memory accounting.
 Streaming CSV integration, the three plotting interfaces and
 demo/stream_demo.ipynb are implemented and verified. Formal vectorisation
 and buffer-size benchmarks, retained-state growth checks and a longer
-integrated stream have also been completed. Final report, video,
-clean-checkout reproduction and submission checks remain pending.
+integrated stream have also been completed. The report has been prepared and the demonstration video recorded.
+Clean-checkout reproduction has passed. Final deliverable placement,
+links, access permissions and submission checks remain pending.
 
 ### Minimal example
 
@@ -778,6 +779,13 @@ Latest verified regression: 406 streaming tests and 903 total tests
 (497 original tests plus 406 streaming tests). The streaming suite
 also passed with warnings treated as errors.
 
+Fresh-checkout verification at commit `2ffa7c4` passed in a newly
+created virtual environment: 406 streaming tests with warnings treated
+as errors, 903 total tests, and all nine demo notebook code cells.
+Both formal benchmark runners, retained-state and long-stream checks,
+and plotting from the recorded benchmark results also passed.
+See `docs/assignment-2.2-testing.md` for the verification record.
+
 ### Current limitations
 
 - Gains <= 1e-12 are treated as numerical zero.
@@ -822,3 +830,15 @@ batch loop reference at all measured sizes; these results are retained.
 Buffer sizes 100, 300 and 600 were compared on the same prequential
 evaluation interval. Retraining timings include the entire triggering
 Pipeline.partial_fit call, not isolated tree fitting.
+
+### Submission materials
+
+The PDF report and demonstration video are submitted separately through
+the course submission system. The video duration is 4 minutes 45 seconds.
+
+The Assignment 2.2 implementation is on the
+[Jiahe-assignment-2.2 branch](https://github.com/Jiahe-SHI/COMP5004-Assignment-2.1-Programming-Task-1/tree/Jiahe-assignment-2.2).
+
+Fresh-checkout verification was performed at commit `2ffa7c4`.
+Reproduction records are documented in
+[the testing notes](docs/assignment-2.2-testing.md).

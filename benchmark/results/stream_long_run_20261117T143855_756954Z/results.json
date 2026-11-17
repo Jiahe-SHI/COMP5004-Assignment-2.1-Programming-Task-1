@@ -1,0 +1,192 @@
+{
+  "metadata": {
+    "timestamp_utc": "2026-11-17T14:38:55.602935+00:00",
+    "python": "3.12.6 (tags/v3.12.6:a4a2d2b, Sep  6 2024, 20:11:23) [MSC v.1940 64 bit (AMD64)]",
+    "numpy": "2.5.5",
+    "platform": "Windows-11-10.0.26200-SP0",
+    "git_head": "2ffa7c4ca1dc8e1870c47dfc81862f20fb1b9197",
+    "git_status": "?? benchmark/results/stream_buffers_formal_20261117T143851_941808Z/\n?? benchmark/results/stream_state_growth_20261117T143852_574900Z/\n?? benchmark/results/stream_vectorization_formal_20261117T143850_388362Z/\n?? reproduction-output/",
+    "source_sha256": {
+      "numcompute_stream/__init__.py": "e742eca931fbeb42bc38e141630e211a08cc8188c37cb306983e73630f708f61",
+      "numcompute_stream/_categorical.py": "0f19cc439f6c6b5a504ba9f14e3a14dd4267aa640868994e0c27652e127b441e",
+      "numcompute_stream/_memory.py": "0a7333e972e2f1f37183d434f7521bd45ac42f01dd5da9e71e04ae94b4f92493",
+      "numcompute_stream/_moments.py": "6f5cf800611e315a1ffe84a298589a8e7bb9cf9722d766af038663195fb23a35",
+      "numcompute_stream/_validation.py": "669dcc660d470affadc1ef8649b6c92b74428676f76d568cc95b981b0e0f8247",
+      "numcompute_stream/io.py": "29b6829081eb875d42152a20189225814f62e2d2bc214c8e416bbd3e0c050e0e",
+      "numcompute_stream/metrics.py": "d13ef0b33c3297de484febdad0434fc5566d73062e983245204c840e7f3c51c1",
+      "numcompute_stream/pipeline.py": "00ca8435b60e9e62f694b53578a392ff5ec77a96280a8102b125e50bf697d43e",
+      "numcompute_stream/preprocessing.py": "48b9f26c1a7b875537d91d37f04eb1f933a08b778d4e78fddc54ba8c7ebd0021",
+      "numcompute_stream/stats.py": "233d6d3ed2153e7ab3764ddd644990cb69ba7651ada53a07c5aa260d140c0fde",
+      "numcompute_stream/stream.py": "94ff906892a066dfcef83aca3ed230d8b76b1716a3c2d63ab0d06ea9e68de99d",
+      "numcompute_stream/tree.py": "2cd1c2692f32a517406b6d6a2c01c4f54ee646096dcfdbd20e5dc1c22ab9d513",
+      "numcompute_stream/visualise.py": "c85270b1290438b2f913eb2eeb5e16593649b5933aa101ad1c5212839cb96a86",
+      "benchmark/check_stream_long_run.py": "a16ee928c24b1879513e6f033e50aaf9e7adc78cca7e5bc4eafdc7aa4bd03333",
+      "benchmark/run_stream_vectorization.py": "55dcac7a97433fd03ba7f69b1ea181e24d3f00357137e5b06ad3849aaf9e94c0",
+      "benchmark/stream_references.py": "4a446ae1b948a8e9e09c0da947aa5cea4b89cefb92cc26ef00779d83bc054d41"
+    },
+    "seed": 2026,
+    "total_samples": 20037,
+    "chunk_size": 100,
+    "buffer_size": 300,
+    "window_size": 500,
+    "max_depth": 5,
+    "data": "Generated per chunk: standard-normal features; target is (x1>0.25) or (x2<-0.5), 5% label flips, then 5% missing features. Generated stream, not replay of the demo CSV.",
+    "scope": "Functional long-stream check, not a performance benchmark. Memory covers current model and evaluation arrays, excluding Python overhead, logs, inputs and temporary allocations. Log event count is reported separately. No tail flush.",
+    "invalid_input_checks": "One Inf score rejected without logging; one Inf fit rejected and logged. Model, evaluation counters/metrics and probe predictions unchanged; valid processing then continues."
+  },
+  "checkpoints": [
+    {
+      "samples_seen": 1000,
+      "evaluated_samples": 700,
+      "retrain_count": 3,
+      "buffer_samples": 100,
+      "log_events": 20,
+      "reachable_array_bytes": 31336,
+      "buffer_array_bytes": 3200,
+      "accuracy": 0.8957142857142857,
+      "auc": 0.888280905358173
+    },
+    {
+      "samples_seen": 10000,
+      "evaluated_samples": 9700,
+      "retrain_count": 33,
+      "buffer_samples": 100,
+      "log_events": 200,
+      "reachable_array_bytes": 175432,
+      "buffer_array_bytes": 3200,
+      "accuracy": 0.8922680412371135,
+      "auc": 0.8892026931853494
+    },
+    {
+      "samples_seen": 20000,
+      "evaluated_samples": 19700,
+      "retrain_count": 66,
+      "buffer_samples": 200,
+      "log_events": 401,
+      "reachable_array_bytes": 338504,
+      "buffer_array_bytes": 6400,
+      "accuracy": 0.8921827411167512,
+      "auc": 0.8940330842629101
+    },
+    {
+      "samples_seen": 20037,
+      "evaluated_samples": 19737,
+      "retrain_count": 66,
+      "buffer_samples": 237,
+      "log_events": 403,
+      "reachable_array_bytes": 340280,
+      "buffer_array_bytes": 7584,
+      "accuracy": 0.8921821958757663,
+      "auc": 0.8939911885865934
+    }
+  ],
+  "final_metrics": {
+    "cumulative": {
+      "classes": [
+        0,
+        1
+      ],
+      "confusion_matrix": [
+        [
+          7360,
+          933
+        ],
+        [
+          1195,
+          10249
+        ]
+      ],
+      "n_samples": 19737,
+      "support": [
+        8293,
+        11444
+      ],
+      "predicted_support": [
+        8555,
+        11182
+      ],
+      "accuracy": 0.8921821958757663,
+      "precision": [
+        0.8603156049094097,
+        0.9165623323197997
+      ],
+      "recall": [
+        0.8874954781140721,
+        0.8955784690667599
+      ],
+      "f1": [
+        0.8736942070275404,
+        0.9059489083355432
+      ],
+      "precision_macro": 0.8884389686146047,
+      "precision_weighted": 0.8929288464600255,
+      "recall_macro": 0.891536973590416,
+      "recall_weighted": 0.8921821958757663,
+      "f1_macro": 0.8898215576815418,
+      "f1_weighted": 0.8923962793672467
+    },
+    "rolling": {
+      "classes": [
+        0,
+        1
+      ],
+      "confusion_matrix": [
+        [
+          189,
+          23
+        ],
+        [
+          30,
+          258
+        ]
+      ],
+      "n_samples": 500,
+      "support": [
+        212,
+        288
+      ],
+      "predicted_support": [
+        219,
+        281
+      ],
+      "accuracy": 0.894,
+      "precision": [
+        0.863013698630137,
+        0.9181494661921709
+      ],
+      "recall": [
+        0.8915094339622641,
+        0.8958333333333334
+      ],
+      "f1": [
+        0.877030162412993,
+        0.9068541300527241
+      ],
+      "precision_macro": 0.8905815824111539,
+      "precision_weighted": 0.8947719007458684,
+      "recall_macro": 0.8936713836477987,
+      "recall_weighted": 0.894,
+      "f1_macro": 0.8919421462328585,
+      "f1_weighted": 0.894208767773478,
+      "window_size": 500,
+      "n_samples_seen": 19737
+    },
+    "cumulative_auc": {
+      "auc": 0.8939911885865934,
+      "n_samples": 19737,
+      "n_positive": 11444,
+      "n_negative": 8293
+    },
+    "rolling_auc": {
+      "auc": 0.88770964360587,
+      "n_samples": 500,
+      "n_positive": 288,
+      "n_negative": 212,
+      "window_size": 500,
+      "n_samples_seen": 19737
+    }
+  },
+  "final_log_events": 403,
+  "failed_fit_events": 1,
+  "checks_passed": true
+}
