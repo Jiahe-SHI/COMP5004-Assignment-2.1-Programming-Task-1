@@ -20,7 +20,7 @@ streaming components, their current implementation status and limitations.
 - Python **3.10 or later**.
 - NumPy **1.24 or later**, installed automatically with the package.
 - Matplotlib, installed automatically with the package for streaming visualisation.
-- The recorded integration benchmark used Python **3.12.6** and NumPy **1.26.4** on Windows 11.
+- The original Assignment 2.1 integration benchmark used Python **3.12.6** and NumPy **1.26.4** on Windows 11. The verified Assignment 2.2 environment is recorded in the streaming section below.
 
 Download or clone this repository and open a terminal in its root directory (the directory containing `pyproject.toml`).
 
@@ -51,11 +51,19 @@ After activation, check the installation:
 
 ```bash
 python -c "import numcompute; print(numcompute.__version__)"
+
+python -c "import numcompute_stream; print(numcompute_stream.__all__)"
 ```
 
 Editable installation makes local package changes available without reinstalling. Run the commands below from the repository root unless a section explicitly changes directory.
 
 ## Package overview
+
+The sections from this package overview through Team contributions
+document the original Assignment 2.1 `numcompute` toolkit. Its API
+conventions and limitations apply to that package. The Assignment 2.2
+section below documents `numcompute_stream`, which provides separate
+streaming APIs and different state-management rules.
 
 | Module | Main functionality |
 | --- | --- |
@@ -263,7 +271,10 @@ These are measured results, not guaranteed speedups. The runner measures the bas
 | `pyproject.toml` | Build configuration and dependencies |
 | `README.md` | Installation, usage, testing and benchmark guide |
 
-The `benchmark/` runner and `demo/` are repository resources; the installed distribution includes the `numcompute` package. Keep the checkout available to run the examples and full benchmarks.
+The installed distribution includes both `numcompute` and
+`numcompute_stream`. Benchmark scripts, notebooks and demonstration
+data are repository resources. Keep the checkout available to run
+the examples and full benchmarks.
 
 ## Team contributions
 
@@ -315,8 +326,10 @@ preprocessing/model publication, evaluation before learning, binary
 probability alignment, event logs and retained-array memory accounting.
 
 Streaming CSV integration, the three plotting interfaces and
-demo/stream_demo.ipynb are implemented and verified. Assignment 2.2
-performance benchmarks and final submission materials remain pending.
+demo/stream_demo.ipynb are implemented and verified. Formal vectorisation
+and buffer-size benchmarks, retained-state growth checks and a longer
+integrated stream have also been completed. Final report, video,
+clean-checkout reproduction and submission checks remain pending.
 
 ### Minimal example
 
@@ -451,12 +464,11 @@ when candidate training fails. External incremental transformers are
 supported through compatible methods and an explicit clone_unfitted
 protocol.
 
-Verified full regression: 892 tests passed in 1.939 seconds on
-16 November 2026, comprising 497 original tests and 395 streaming-package
-tests. The verified environment used Python 3.12.6, NumPy 2.5.5 and
-matplotlib 3.11.2 on Windows. This is a test execution measurement,
-not a performance benchmark. See docs/assignment-2.2-testing.md for
-commands and recorded results.
+The verified streaming environment used Python 3.12.6, NumPy 2.5.5 and
+matplotlib 3.11.2 on Windows. See the streaming Tests section below for
+the latest regression totals and docs/assignment-2.2-testing.md for
+commands and historical verification records. Test execution times
+are not performance benchmarks.
 
 ### Cumulative and rolling metrics
 

@@ -791,3 +791,34 @@ Detailed methods, exact result locations, limitations and figures:
 - Complete clean-checkout reproduction and final access/link checks.
 
 No benchmark commit or push is claimed at this checkpoint.
+
+## README and public API verification
+
+The README now distinguishes the original Assignment 2.1 package
+documentation from the Assignment 2.2 streaming extension. Outdated
+benchmark and notebook status statements have been corrected, and
+the streaming test totals are recorded in one current summary.
+
+All 17 package-level public exports imported successfully. Their
+signatures and relevant public method signatures were inspected
+against the documented usage.
+
+The five Python examples in the README streaming section were
+extracted from the current file and executed in separate namespaces
+with warnings treated as errors (`python -W error -`). Captured
+standard output matched the expected output for every example:
+
+- Batch decision tree classification and probabilities.
+- Whole-buffer retraining and observable model state.
+- Cumulative and rolling classification metrics and binary AUC.
+- Buffered Pipeline with evaluation before learning.
+- Streaming CSV input, including the final short chunk.
+
+Result: README streaming examples: PASS (5/5).
+
+These are documentation checks, not additional unit tests. The latest
+recorded full regression remains 903 tests: 497 original tests and
+406 streaming tests. The full regression was not rerun for these
+documentation-only changes.
+
+Clean-checkout installation and complete reproduction remain pending.

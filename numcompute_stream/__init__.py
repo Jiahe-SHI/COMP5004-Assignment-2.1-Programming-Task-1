@@ -9,7 +9,9 @@ StreamTrainer evaluation, learning, event logs and array-storage accounting.
 CSV chunk reading supports numeric features and classification labels,
 with tested CSV-to-trainer integration. Matplotlib helpers provide metric
 curves, model comparisons and categorical prediction plots.
-The streaming demo notebook remains under development.
+The streaming demo notebook demonstrates CSV input, evaluation before
+learning, buffered training and plotting, and has been verified by
+restarting the kernel and running all cells.
 """
 
 from .tree import DecisionTreeClassifier
